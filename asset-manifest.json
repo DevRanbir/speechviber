@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/speechviber/static/js/main.6c577dde.js",
+    "main.js": "/speechviber/static/js/main.f4c87b36.js",
     "index.html": "/speechviber/index.html",
-    "main.6c577dde.js.map": "/speechviber/static/js/main.6c577dde.js.map"
+    "main.f4c87b36.js.map": "/speechviber/static/js/main.f4c87b36.js.map"
   },
   "entrypoints": [
-    "static/js/main.6c577dde.js"
+    "static/js/main.f4c87b36.js"
   ]
 }
