@@ -1,13 +1,120 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { 
+  Box, Typography, Button, Container, LinearProgress, Paper, Card, CardContent,
+  Avatar, Chip, Grid, CircularProgress, Divider
+} from '@mui/material';
+import { styled } from '@mui/material/styles';
+import { 
+  Mic, MicOff, NavigateNext, Refresh, Quiz, Assessment, ArrowBack
+} from '@mui/icons-material';
 
+// API key
 const API_KEY = "AIzaSyDtTaeo58Dzie60E-F2l3SVFmCdkCegrsk";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
+// Styled components
+const GradientTypography = styled(Typography)(({ theme }) => ({
+  background: 'linear-gradient(to right, #4f46e5, #8b5cf6)',
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  backgroundClip: 'text',
+  color: 'transparent'
+}));
+
+const GradientButton = styled(Button)(({ theme, disabled }) => ({
+  background: disabled ? 'rgba(55, 65, 81, 0.5)' : 'linear-gradient(to right, #4f46e5, #8b5cf6)',
+  color: 'white',
+  padding: '12px 24px',
+  '&:hover': {
+    background: disabled ? 'rgba(55, 65, 81, 0.5)' : 'linear-gradient(to right, #4f46e5, #7c3aed)',
+  },
+  boxShadow: disabled ? 'none' : '0 4px 15px -3px rgba(79, 70, 229, 0.4)',
+  border: disabled ? '1px solid rgba(75, 85, 99, 0.3)' : '1px solid rgba(79, 70, 229, 0.3)',
+}));
+
+const RedButton = styled(Button)({
+  background: 'linear-gradient(to right, #dc2626, #b91c1c)',
+  color: 'white',
+  padding: '12px 24px',
+  '&:hover': {
+    background: 'linear-gradient(to right, #dc2626, #991b1b)',
+  },
+  boxShadow: '0 4px 15px -3px rgba(220, 38, 38, 0.4)',
+  border: '1px solid rgba(220, 38, 38, 0.3)',
+});
+
+const StyledPaper = styled(Paper)(({ theme }) => ({
+  backdropFilter: 'blur(8px)',
+  backgroundColor: 'rgba(31, 41, 55, 0.4)',
+  borderRadius: '24px',
+  border: '1px solid rgba(79, 70, 229, 0.3)',
+  padding: '32px',
+  position: 'relative',
+  overflow: 'hidden',
+  boxShadow: theme.shadows[10],
+}));
+
+const FeatureCard = styled(Card)(({ theme }) => ({
+  backgroundColor: 'rgba(31, 41, 55, 0.4)',
+  backdropFilter: 'blur(8px)',
+  border: '1px solid rgba(107, 114, 128, 0.5)',
+  borderRadius: '12px',
+}));
+
+const StyledAvatar = styled(Avatar)(({ theme }) => ({
+  backgroundColor: 'rgba(79, 70, 229, 0.3)',
+  border: '1px solid rgba(79, 70, 229, 0.3)',
+  color: theme.palette.primary.light,
+  width: 56,
+  height: 56,
+}));
+
+const RecordingIndicator = styled('span')({
+  display: 'inline-flex',
+  alignItems: 'center',
+  '& .pulse': {
+    position: 'relative',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 12,
+    height: 12,
+    marginRight: 8,
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      width: '100%',
+      height: '100%',
+      borderRadius: '50%',
+      backgroundColor: '#ef4444',
+      animation: 'pulse 1.5s cubic-bezier(0, 0, 0.2, 1) infinite',
+    },
+    '&::after': {
+      content: '""',
+      position: 'relative',
+      width: '100%',
+      height: '100%',
+      borderRadius: '50%',
+      backgroundColor: '#f87171',
+    }
+  },
+  '@keyframes pulse': {
+    '0%': {
+      transform: 'scale(0.8)',
+      opacity: 1,
+    },
+    '100%': {
+      transform: 'scale(2)',
+      opacity: 0,
+    },
+  },
+});
+
 const InterviewSimulator = () => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedQuestions, setSelectedQuestions] = useState([]);
+  const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState([]);
   const [timeLeft, setTimeLeft] = useState(15);
   const [isListening, setIsListening] = useState(false);
@@ -15,111 +122,70 @@ const InterviewSimulator = () => {
   const [evaluations, setEvaluations] = useState([]);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [averageScore, setAverageScore] = useState(0);
 
-  const allQuestions = [
-    "Tell me about yourself.",
-    "What are your greatest strengths?",
-    "Where do you see yourself in 5 years?",
-    "Why should we hire you?",
-    "What is your biggest weakness?",
-    "How do you handle stress and pressure?",
-    "Describe a challenging situation you've faced at work.",
-    "What are your salary expectations?",
-    "Why do you want to work here?",
-    "What are your career goals?",
-    "How do you handle conflict at work?",
-    "What motivates you?",
-    "Describe your leadership style.",
-    "How do you prioritize your work?",
-    "What makes you unique?",
-    "Can you describe a time when you failed and how you handled it?",
-    "Tell me about a time when you had to work with a difficult coworker.",
-    "What do you know about our company?",
-    "How do you handle constructive criticism?",
-    "Describe a situation where you had to meet a tight deadline.",
-    "How do you stay organized and manage your time?",
-    "What skills do you bring to this role?",
-    "Tell me about a time when you took initiative at work.",
-    "What do you do to stay updated in your field?",
-    "Give an example of how you’ve dealt with ambiguity in the workplace.",
-    "How do you handle multiple projects at once?",
-    "Have you ever had to make a tough decision at work? What was the outcome?",
-    "Tell me about a time you disagreed with your manager and how you handled it.",
-    "What steps do you take to improve yourself professionally?",
-    "What is your biggest professional achievement?",
-    "How do you deal with failure?",
-    "What would your coworkers say about you?",
-    "How do you ensure accuracy in your work?",
-    "Tell me about a time you had to adapt to a sudden change.",
-    "What do you do when you don’t know the answer to a question at work?",
-    "Describe a time you went above and beyond for a project.",
-    "What do you think is the most important quality for this role?",
-    "What kind of work environment do you prefer?",
-    "How do you handle a situation where a team member is not contributing?",
-    "How do you approach problem-solving?",
-    "Tell me about a time you had to convince someone to see things your way.",
-    "What do you consider your biggest success in your career?",
-    "What are your long-term career aspirations?",
-    "Tell me about a time you made a mistake and how you handled it.",
-    "How do you stay motivated when working on repetitive tasks?",
-    "What interests you the most about this position?",
-    "How do you handle feedback from your manager or peers?",
-    "Tell me about a time when you had to learn a new skill quickly.",
-    "Describe a time when you led a team to success.",
-    "What strategies do you use to stay productive?",
-    "How do you handle working under a difficult boss?",
-    "How do you ensure effective communication within a team?",
-    "What do you do when you have a disagreement with a team member?",
-    "If you were given a task outside of your expertise, how would you handle it?",
-    "Describe a situation where you exceeded expectations.",
-    "How do you stay calm under pressure?",
-    "What kind of leadership do you respond best to?",
-    "How do you deal with tight deadlines?",
-    "What do you consider when making important work-related decisions?",
-    "How do you balance quality and efficiency in your work?",
-    "Tell me about a time you solved a complex problem.",
-    "What role do you usually take in a team setting?",
-    "How do you handle unexpected challenges in a project?",
-    "What do you think makes a great team player?",
-    "What do you value most in a workplace?",
-    "What have you done to improve your knowledge in the past year?",
-    "Tell me about a time you had to handle a difficult customer.",
-    "What would you do if you had to work on a project with little guidance?",
-    "How do you manage stress in a fast-paced environment?",
-    "How do you build relationships with coworkers?",
-    "What does success mean to you?",
-    "What kind of challenges are you looking for in a new position?",
-    "If you could change one thing about your last job, what would it be?",
-    "What are your thoughts on workplace diversity and inclusion?",
-    "How do you handle ethical dilemmas at work?",
-    "What is one thing you would improve about yourself?",
-    "Tell me about a time you helped a colleague succeed.",
-    "How do you keep yourself accountable for meeting deadlines?",
-    "What do you do when priorities shift unexpectedly?",
-    "How do you evaluate success in your job?",
-    "Describe a time when you worked with a cross-functional team.",
-    "What is the best piece of career advice you’ve ever received?",
-    "Tell me about a time when you worked on a team with different personalities.",
-    "How do you ensure that you meet customer expectations?",
-    "If you were to start your career over, what would you do differently?",
-    "What is one professional risk you took and what was the outcome?",
-    "How do you prepare for an important presentation or meeting?",
-    "If you had to explain your job to a five-year-old, how would you do it?",
-    "What would you do if you had multiple urgent deadlines at the same time?",
-    "What are three things your previous employer would say about you?",
-    "If you could have dinner with any leader or professional in your field, who would it be and why?",
-    "What do you think sets you apart from other candidates?",
-    "If you were a hiring manager, what qualities would you look for in a candidate?",
-    "What do you consider your most important professional lesson?",
-    "Describe a situation where you had to step up as a leader unexpectedly."
-];
-
-
+  // Fetch questions from API on component mount
   useEffect(() => {
-    // Select 4 random questions at start
-    const shuffled = [...allQuestions].sort(() => 0.5 - Math.random());
-    setSelectedQuestions(shuffled.slice(0, 4));
+    fetchQuestions();
   }, []);
+
+  const fetchQuestions = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: "Generate 4 job interview questions starting with tell me about yourself. Return only the 4 questions as a JSON array with no additional text." }]
+          }]
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        const responseText = data.candidates[0].content.parts[0].text;
+        
+        // Extract JSON array from response
+        let parsedQuestions;
+        try {
+          // Try to directly parse JSON
+          parsedQuestions = JSON.parse(responseText);
+        } catch (e) {
+          // If direct parsing fails, try to extract JSON portion
+          const jsonMatch = responseText.match(/\[.*\]/s);
+          if (jsonMatch) {
+            parsedQuestions = JSON.parse(jsonMatch[0]);
+          }
+        }
+        
+        if (Array.isArray(parsedQuestions) && parsedQuestions.length >= 4) {
+          setQuestions(parsedQuestions.slice(0, 4));
+        } else {
+          // Fallback questions if parsing fails
+          setQuestions([
+            "Tell me about yourself.",
+            "What are your greatest strengths?",
+            "Where do you see yourself in 5 years?",
+            "Why should we hire you?"
+          ]);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching questions:", error);
+      // Fallback questions
+      setQuestions([
+        "Tell me about yourself.",
+        "What are your greatest strengths?",
+        "Where do you see yourself in 5 years?",
+        "Why should we hire you?"
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     let timer;
@@ -174,9 +240,9 @@ const InterviewSimulator = () => {
     setIsEvaluating(true);
     const evaluationResults = [];
     
-    for (let i = 0; i < selectedQuestions.length; i++) {
+    for (let i = 0; i < questions.length; i++) {
       try {
-        const result = await askAI(selectedQuestions[i], answers[i]);
+        const result = await askAI(questions[i], answers[i]);
         evaluationResults.push(result);
       } catch (error) {
         console.error("Evaluation error:", error);
@@ -185,6 +251,17 @@ const InterviewSimulator = () => {
     }
     
     setEvaluations(evaluationResults);
+    
+    // Calculate average score
+    const scores = evaluationResults
+      .map(result => parseInt(result.accuracy))
+      .filter(score => !isNaN(score));
+    
+    if (scores.length > 0) {
+      const avg = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+      setAverageScore(Math.round(avg));
+    }
+    
     setIsEvaluating(false);
   };
 
@@ -232,380 +309,337 @@ const InterviewSimulator = () => {
     }
   };
 
+  const restartInterview = () => {
+    setTestComplete(false);
+    setCurrentQuestionIndex(0);
+    setAnswers([]);
+    setEvaluations([]);
+    setTimeLeft(15);
+    fetchQuestions();
+  };
+
+  const goBack = () => {
+    // Navigate to the practice page instead of showing intro
+    window.location.href = '/practice';
+  };
+
   // Calculate progress percentage
   const progressPercentage = ((currentQuestionIndex) / 4) * 100;
 
+  if (isLoading) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(to bottom right, #111827, #312e81)' }}>
+        <CircularProgress size={60} sx={{ color: '#8b5cf6' }} />
+      </Box>
+    );
+  }
+
   if (showIntro) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-indigo-950 text-white p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="relative backdrop-blur-sm bg-gray-800/30 rounded-3xl p-12 border border-indigo-500/30 shadow-2xl overflow-hidden">
+      <Box sx={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #111827, #312e81)', color: 'white', padding: 3, display: 'flex', alignItems: 'center' }}>
+        <Container maxWidth="md">
+          <StyledPaper>
             {/* Decorative elements */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-600/20 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-600/20 rounded-full blur-3xl"></div>
+            <Box sx={{ position: 'absolute', top: -100, right: -100, width: 200, height: 200, bgcolor: 'rgba(79, 70, 229, 0.2)', borderRadius: '50%', filter: 'blur(40px)' }} />
+            <Box sx={{ position: 'absolute', bottom: -100, left: -100, width: 200, height: 200, bgcolor: 'rgba(139, 92, 246, 0.2)', borderRadius: '50%', filter: 'blur(40px)' }} />
             
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-full bg-indigo-600/30 backdrop-blur-sm border border-indigo-500/30 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-300">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"></path>
-                  </svg>
-                </div>
-                <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">Audio Fastrack Analysis</h1>
-              </div>
+            <Box sx={{ position: 'relative', zIndex: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                <StyledAvatar><Quiz /></StyledAvatar>
+                <GradientTypography variant="h4" fontWeight="bold">Audio Fastrack Analysis</GradientTypography>
+              </Box>
               
-              <p className="text-xl mb-8 text-gray-200 leading-relaxed">Perfect your interview skills with AI-powered feedback. Practice with real questions and receive personalized evaluations.</p>
+              <Typography variant="h6" sx={{ mb: 4, color: 'grey.300' }}>
+                Perfect your interview skills with AI-powered feedback. Practice with real questions and receive personalized evaluations.
+              </Typography>
               
-              <div className="grid grid-cols-2 gap-6 mb-10">
-                <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl p-5 border border-gray-700/50">
-                  <div className="w-10 h-10 rounded-full bg-purple-900/60 border border-purple-500/30 flex items-center justify-center mb-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-300">
-                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                      <line x1="12" y1="19" x2="12" y2="22"></line>
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-200 mb-1">Voice Recognition</h3>
-                  <p className="text-gray-400">Speak your answers naturally like in a real interview</p>
-                </div>
+              <Grid container spacing={3} sx={{ mb: 4 }}>
+                <Grid item xs={12} sm={6}>
+                  <FeatureCard>
+                    <CardContent sx={{ p: 3 }}>
+                      <Avatar sx={{ bgcolor: 'rgba(139, 92, 246, 0.2)', border: '1px solid rgba(139, 92, 246, 0.3)', mb: 2 }}><Mic /></Avatar>
+                      <Typography variant="h6" fontWeight="medium" sx={{ color: 'grey.200', mb: 1 }}>Voice Recognition</Typography>
+                      <Typography variant="body2" sx={{ color: 'grey.400' }}>Speak your answers naturally like in a real interview</Typography>
+                    </CardContent>
+                  </FeatureCard>
+                </Grid>
                 
-                <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl p-5 border border-gray-700/50">
-                  <div className="w-10 h-10 rounded-full bg-indigo-900/60 border border-indigo-500/30 flex items-center justify-center mb-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-300">
-                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                      <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
-                      <polyline points="7.5 19.79 7.5 14.6 3 12"></polyline>
-                      <polyline points="21 12 16.5 14.6 16.5 19.79"></polyline>
-                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                      <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-200 mb-1">AI Feedback</h3>
-                  <p className="text-gray-400">Receive detailed evaluations for all your responses</p>
-                </div>
-              </div>
+                <Grid item xs={12} sm={6}>
+                  <FeatureCard>
+                    <CardContent sx={{ p: 3 }}>
+                      <Avatar sx={{ bgcolor: 'rgba(79, 70, 229, 0.2)', border: '1px solid rgba(79, 70, 229, 0.3)', mb: 2 }}><Assessment /></Avatar>
+                      <Typography variant="h6" fontWeight="medium" sx={{ color: 'grey.200', mb: 1 }}>AI Feedback</Typography>
+                      <Typography variant="body2" sx={{ color: 'grey.400' }}>Receive detailed evaluations for all your responses</Typography>
+                    </CardContent>
+                  </FeatureCard>
+                </Grid>
+              </Grid>
               
-              <button 
-                onClick={() => setShowIntro(false)}
-                style={{
-                  width: '100%',
-                  padding: '1rem 2rem',
-                  background: 'linear-gradient(to right, #4f46e5, #8b5cf6)',
-                  color: 'white',
-                  borderRadius: '0.75rem',
-                  fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.75rem',
-                  transition: 'all 0.3s',
-                  boxShadow: '0 4px 6px -1px rgba(79, 70, 229, 0.3)',
-                  border: '1px solid rgba(79, 70, 229, 0.3)',
-                  cursor: 'pointer'
-                }}
-              >
-                <span style={{ fontSize: '1.125rem' }}>BEGIN YOUR INTERVIEW</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                  <polyline points="12 5 19 12 12 19"></polyline>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <GradientButton fullWidth variant="contained" size="large" onClick={() => setShowIntro(false)} endIcon={<NavigateNext />} sx={{ py: 1.5 }}>
+                  BEGIN YOUR INTERVIEW
+                </GradientButton>
+                
+                <Button 
+                  fullWidth
+                  variant="outlined" 
+                  startIcon={<ArrowBack />} 
+                  onClick={goBack}
+                  sx={{ 
+                    color: 'grey.300', 
+                    borderColor: 'rgba(107, 114, 128, 0.5)',
+                    '&:hover': { borderColor: 'grey.300' },
+                    py: 1.5
+                  }}
+                >
+                  GO BACK
+                </Button>
+              </Box>
+            </Box>
+          </StyledPaper>
+        </Container>
+      </Box>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-indigo-950 text-white p-6">
-      <div className="max-w-5xl mx-auto">
-        <header className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-indigo-600/30 backdrop-blur-sm border border-indigo-500/30 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-300">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z"></path>
-              </svg>
-            </div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
-              Audio Fastrack Analysis
-            </h1>
-          </div>
+    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #111827, #312e81)', color: 'white', padding: 3 }}>
+      <Container maxWidth="lg">
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <StyledAvatar><Quiz /></StyledAvatar>
+            <GradientTypography variant="h5" fontWeight="bold">Audio Fastrack Analysis</GradientTypography>
+          </Box>
           
-          {!testComplete && (
-            <div className="flex items-center gap-3">
-              <div className="px-4 py-2 rounded-full bg-gray-800/60 backdrop-blur-sm border border-gray-700/50 text-sm font-medium text-gray-300">
-                Question {currentQuestionIndex + 1} of 4
-              </div>
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center border-3 text-xl font-bold transition-colors ${
-                timeLeft > 10 ? 'border-green-500/70 text-green-400 bg-green-900/30' :
-                timeLeft > 5 ? 'border-yellow-500/70 text-yellow-400 bg-yellow-900/30' :
-                'border-red-500/70 text-red-400 bg-red-900/30 animate-pulse'
-              }`}>
-                Time remaining: {timeLeft}
-              </div>
-            </div>
-          )}
-        </header>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button 
+              variant="outlined" 
+              startIcon={<ArrowBack />} 
+              onClick={goBack}
+              sx={{ 
+                color: 'grey.300', 
+                borderColor: 'rgba(107, 114, 128, 0.5)',
+                '&:hover': { borderColor: 'grey.300' }
+              }}
+            >
+              Go Back
+            </Button>
+            
+            {!testComplete && (
+              <Chip 
+                label={`Question ${currentQuestionIndex + 1} of 4`}
+                sx={{ bgcolor: 'rgba(31, 41, 55, 0.6)', backdropFilter: 'blur(8px)', border: '1px solid rgba(107, 114, 128, 0.5)', color: 'grey.300', px: 1 }}
+              />
+            )}
+            
+            {!testComplete && (
+              <Box sx={{ 
+                width: 48, height: 48, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '3px solid', borderColor: timeLeft > 10 ? 'success.main' : timeLeft > 5 ? 'warning.main' : 'error.main',
+                bgcolor: timeLeft > 10 ? 'rgba(16, 185, 129, 0.1)' : timeLeft > 5 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                fontWeight: 'bold'
+              }}>
+                {timeLeft}
+              </Box>
+            )}
+          </Box>
+        </Box>
         
         {!testComplete ? (
-          <div className="backdrop-blur-sm bg-gray-800/40 rounded-3xl p-8 border border-indigo-500/30 shadow-xl overflow-hidden relative">
+          <StyledPaper>
             {/* Decorative elements */}
-            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-600/10 rounded-full blur-3xl"></div>
-            <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
+            <Box sx={{ position: 'absolute', bottom: -100, right: -100, width: 200, height: 200, bgcolor: 'rgba(79, 70, 229, 0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
+            <Box sx={{ position: 'absolute', top: -100, left: -100, width: 200, height: 200, bgcolor: 'rgba(139, 92, 246, 0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
             
-            <div className="relative z-10">
+            <Box sx={{ position: 'relative', zIndex: 1 }}>
               {/* Progress bar */}
-              <div className="mb-8">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-sm font-medium text-indigo-300">Progress: </span>
-                  <span className="text-sm font-medium text-gray-400">
-                    {Math.floor(progressPercentage)}% complete
-                  </span>
-                </div>
-                <div className="w-full h-3 bg-gray-800/80 rounded-full overflow-hidden p-0.5">
-                  <div 
-                    className="h-full bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full transition-all duration-500" 
-                    style={{ width: `${progressPercentage}%` }}
-                  ></div>
-                </div>
-              </div>
+              <Box sx={{ mb: 4 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                  <Typography variant="body2" sx={{ color: 'primary.light' }}>Progress: </Typography>
+                  <Typography variant="body2" sx={{ color: 'grey.500' }}>{Math.floor(progressPercentage)}% complete</Typography>
+                </Box>
+                <LinearProgress variant="determinate" value={progressPercentage} sx={{ 
+                  height: 8, borderRadius: 4, bgcolor: 'rgba(31, 41, 55, 0.8)',
+                  '& .MuiLinearProgress-bar': { background: 'linear-gradient(to right, #4f46e5, #8b5cf6)', borderRadius: 4 }
+                }} />
+              </Box>
 
               {/* Question card */}
-              <div className="bg-gray-800/70 backdrop-blur-sm p-8 rounded-2xl mb-8 border border-gray-700/50 shadow-lg transform transition-all hover:shadow-indigo-900/20 hover:border-indigo-500/40">
-                <div className="flex items-start gap-4 mb-6">
-                  <div className="w-24 h-24 rounded-full bg-indigo-900/60 border border-indigo-500/30 flex items-center justify-center text-lg font-bold shrink-0 text-indigo-300">
-                  </div>
-                  <h2 className="text-2xl font-semibold text-white">
-                    Q: {selectedQuestions[currentQuestionIndex]}
-                  </h2>
-                </div>
+              <Paper sx={{ bgcolor: 'rgba(31, 41, 55, 0.7)', backdropFilter: 'blur(8px)', p: 4, borderRadius: 4, border: '1px solid rgba(107, 114, 128, 0.5)', mb: 4 }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 3, mb: 3 }}>
+                  <StyledAvatar sx={{ width: 64, height: 64 }}>{currentQuestionIndex + 1}</StyledAvatar>
+                  <Typography variant="h5" fontWeight="medium" sx={{ color: 'white' }}>Q: {questions[currentQuestionIndex]}</Typography>
+                </Box>
                 
                 {answers[currentQuestionIndex] && (
-                  <div className="mt-6 p-5 bg-gray-900/70 rounded-xl border border-gray-700/50">
-                    <h3 className="text-sm uppercase text-gray-400 mb-2 flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="22"></line>
-                      </svg>
-                      Your Response:
-                    </h3>
-                    <p className="text-gray-300 italic">{answers[currentQuestionIndex]}</p>
-                  </div>
+                  <Box sx={{ mt: 3, p: 2.5, bgcolor: 'rgba(17, 24, 39, 0.7)', borderRadius: 3, border: '1px solid rgba(107, 114, 128, 0.5)' }}>
+                    <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 1, textTransform: 'uppercase', color: 'grey.500', mb: 1 }}>
+                      <Mic fontSize="small" />Your Response:
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontStyle: 'italic', color: 'grey.300' }}>{answers[currentQuestionIndex]}</Typography>
+                  </Box>
                 )}
-              </div>
+              </Paper>
 
               {/* Action buttons */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                <button
-                  onClick={isListening ? stopListening : startListening}
-                  style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    fontWeight: '500',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    transition: 'all 0.3s',
-                    background: isListening 
-                      ? 'linear-gradient(to right, #dc2626, #b91c1c)'
-                      : 'linear-gradient(to right, #4f46e5, #8b5cf6)',
-                    boxShadow: isListening
-                      ? '0 4px 15px -3px rgba(220, 38, 38, 0.4)'
-                      : '0 4px 15px -3px rgba(79, 70, 229, 0.4)',
-                    border: isListening
-                      ? '1px solid rgba(220, 38, 38, 0.3)'
-                      : '1px solid rgba(79, 70, 229, 0.3)',
-                    cursor: 'pointer',
-                    transform: 'translateZ(0)',
-                    color: 'white'
-                  }}
-                >
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6}>
                   {isListening ? (
-                    <>
-                      <span style={{ 
-                        position: 'relative',
-                        display: 'flex',
-                        height: '0.75rem',
-                        width: '0.75rem',
-                        marginRight: '0.5rem'
-                      }}>
-                        <span style={{
-                          animation: 'ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite',
-                          position: 'absolute',
-                          display: 'inline-flex',
-                          height: '100%',
-                          width: '100%',
-                          borderRadius: '9999px',
-                          backgroundColor: '#f87171',
-                          opacity: 0.75
-                        }}></span>
-                        <span style={{
-                          position: 'relative',
-                          display: 'inline-flex',
-                          borderRadius: '9999px',
-                          height: '0.75rem',
-                          width: '0.75rem',
-                          backgroundColor: '#ef4444'
-                        }}></span>
-                      </span>
-                      <span style={{ fontSize: '1.125rem' }}>Stop Recording</span>
-                    </>
+                    <RedButton fullWidth variant="contained" onClick={stopListening} startIcon={(<RecordingIndicator><span className="pulse"></span></RecordingIndicator>)} sx={{ py: 1.5 }}>
+                      Stop Recording
+                    </RedButton>
                   ) : (
-                    <>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.5rem' }}>
-                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="22"></line>
-                      </svg>
-                      <span style={{ fontSize: '1.125rem' }}>Start Speaking</span>
-                    </>
+                    <GradientButton fullWidth variant="contained" onClick={startListening} startIcon={<Mic />} sx={{ py: 1.5 }}>
+                      Start Speaking
+                    </GradientButton>
                   )}
-                </button>
-                
-                <button
-                  onClick={nextQuestion}
-                  disabled={isListening || (timeLeft > 0 && !answers[currentQuestionIndex])}
-                  style={{
-                    padding: '1.25rem',
-                    borderRadius: '0.75rem',
-                    fontWeight: '500',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                    transition: 'all 0.3s',
-                    background: isListening || (timeLeft > 0 && !answers[currentQuestionIndex])
-                      ? 'rgba(55, 65, 81, 0.5)'
-                      : 'linear-gradient(to right, #4f46e5, #8b5cf6)',
-                    boxShadow: isListening || (timeLeft > 0 && !answers[currentQuestionIndex])
-                      ? 'none'
-                      : '0 4px 15px -3px rgba(79, 70, 229, 0.4)',
-                    border: isListening || (timeLeft > 0 && !answers[currentQuestionIndex])
-                      ? '1px solid rgba(75, 85, 99, 0.3)'
-                      : '1px solid rgba(79, 70, 229, 0.3)',
-                    cursor: isListening || (timeLeft > 0 && !answers[currentQuestionIndex])
-                      ? 'not-allowed'
-                      : 'pointer',
-                    transform: 'translateZ(0)',
-                    color: 'white'
-                  }}
-                >
-                  <span style={{ fontSize: '1.125rem' }}>Next Question</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="9 18 15 12 9 6"></polyline>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <GradientButton fullWidth variant="contained" onClick={nextQuestion} disabled={isListening || (timeLeft > 0 && !answers[currentQuestionIndex])} endIcon={<NavigateNext />} sx={{ py: 1.5 }}>
+                    Next Question
+                  </GradientButton>
+                </Grid>
+              </Grid>
+            </Box>
+          </StyledPaper>
         ) : (
-          <div className="backdrop-blur-sm bg-gray-800/40 rounded-3xl p-8 border border-indigo-500/30 shadow-xl overflow-hidden relative">
+          <StyledPaper>
             {/* Decorative elements */}
-            <div className="absolute -top-24 -left-24 w-48 h-48 bg-purple-600/10 rounded-full blur-3xl"></div>
-            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-600/10 rounded-full blur-3xl"></div>
+            <Box sx={{ position: 'absolute', top: -100, left: -100, width: 200, height: 200, bgcolor: 'rgba(139, 92, 246, 0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
+            <Box sx={{ position: 'absolute', bottom: -100, right: -100, width: 200, height: 200, bgcolor: 'rgba(79, 70, 229, 0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
             
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-indigo-900/60 border border-indigo-500/30 flex items-center justify-center text-xl font-bold text-indigo-300">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-300">
-                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                      <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">
-                    Interview Results
-                  </h2>
-                </div>
+            <Box sx={{ position: 'relative', zIndex: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Avatar sx={{ bgcolor: 'rgba(79, 70, 229, 0.2)', border: '1px solid rgba(79, 70, 229, 0.3)' }}><Assessment /></Avatar>
+                  <GradientTypography variant="h5" fontWeight="bold">Interview Results</GradientTypography>
+                </Box>
                 
                 {!isEvaluating && (
-                  <button 
-                    onClick={() => {
-                      setTestComplete(false);
-                      setCurrentQuestionIndex(0);
-                      setAnswers([]);
-                      setEvaluations([]);
-                      setTimeLeft(15);
-                      
-                      // Select new questions
-                      const shuffled = [...allQuestions].sort(() => 0.5 - Math.random());
-                      setSelectedQuestions(shuffled.slice(0, 4));
-                    }}
-                    style={{
-                      padding: '0.75rem 1.5rem',
-                      borderRadius: '0.75rem',
-                      background: 'linear-gradient(to right, #4f46e5, #8b5cf6)',
-                      transition: 'all 0.3s',
-                      boxShadow: '0 4px 6px -1px rgba(79, 70, 229, 0.3)',
-                      fontWeight: '500',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      border: '1px solid rgba(79, 70, 229, 0.3)',
-                      cursor: 'pointer',
-                      color: 'white'
-                    }}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                      <path d="M3 3v5h5"></path>
-                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-                      <path d="M16 16h5v5"></path>
-                    </svg>
-                    <span className="text-lg">Try Again</span>
-                  </button>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button
+                      variant="outlined"
+                      onClick={restartInterview}
+                      startIcon={<Refresh />}
+                      sx={{
+                        color: 'grey.300', 
+                        borderColor: 'rgba(107, 114, 128, 0.5)',
+                        '&:hover': { borderColor: 'grey.300' }
+                      }}
+                    >
+                      Try Again
+                    </Button>
+                  </Box>
                 )}
-              </div>
+              </Box>
               
               {isEvaluating ? (
-                <div className="text-center py-20 bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700/50">
-                  <div className="w-24 h-24 border-4 border-t-indigo-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin mx-auto mb-8"></div>
-                  <p className="text-2xl font-medium bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">Analyzing your responses</p>
-                  <p className="text-gray-400 mt-3">Our AI is evaluating your interview performance</p>
-                </div>
+                <Box sx={{ textAlign: 'center', py: 10, bgcolor: 'rgba(31, 41, 55, 0.5)', backdropFilter: 'blur(8px)', borderRadius: 4, border: '1px solid rgba(107, 114, 128, 0.5)' }}>
+                  <CircularProgress size={80} sx={{ color: '#8b5cf6', mb: 4 }} />
+                  <GradientTypography variant="h5" fontWeight="medium" sx={{ mb: 1 }}>Analyzing your responses</GradientTypography>
+                  <Typography sx={{ color: 'grey.500' }}>Our AI is evaluating your interview performance</Typography>
+                </Box>
               ) : (
-                <div className="grid grid-cols-1 gap-8">
-                  {selectedQuestions.map((question, index) => (
-                    <div key={index} className="bg-gray-600/70 backdrop-blur-sm rounded-2xl border border-gray-700/50 overflow-hidden padding-top-10px ">
-                      <div className="p-6">
-                        <hr className="mb-4" />
-                        <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 rounded-full bg-indigo-900/60 border border-indigo-500/30 flex items-center justify-center text-xl font-bold text-indigo-300">
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-semibold text-white mb-4">for Q: {question}</h3>
-                            <div className="bg-gray-900/40 rounded-xl p-4 border border-gray-700/50">
-                              <p className="text-gray-300 italic">You Replied: {answers[index] || "No answer provided"}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {evaluations[index] && (
-                        <div className="bg-gray-900/70 p-6 border-t border-gray-700/50">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-full bg-purple-900/60 border border-purple-500/30 flex items-center justify-center text-xl font-bold text-purple-300">
-                              Accuracy: {evaluations[index].accuracy}%
-                            </div>
-                            <p className="text-gray-300">{evaluations[index].response}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <>
+                  {/* Average Score Section */}
+                  <Paper sx={{ 
+                    bgcolor: 'rgba(31, 41, 55, 0.7)', 
+                    backdropFilter: 'blur(8px)', 
+                    p: 3, 
+                    borderRadius: 4,
+                    border: '1px solid rgba(79, 70, 229, 0.3)',
+                    mb: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Avatar sx={{ 
+                        bgcolor: 'rgba(79, 70, 229, 0.3)', 
+                        border: '1px solid rgba(139, 92, 246, 0.5)',
+                        width: 64,
+                        height: 64,
+                        fontSize: '1.5rem',
+                        fontWeight: 'bold' 
+                      }}>
+                        {averageScore}%
+                      </Avatar>
+                      <Box>
+                        <Typography variant="h6" sx={{ color: 'white' }}>Overall Performance</Typography>
+                        <Typography variant="body2" sx={{ color: 'grey.400' }}>
+                          Your average score across all interview questions
+                        </Typography>
+                      </Box>
+                    </Box>
+                    
+                    <Box sx={{ 
+                      px: 3, 
+                      py: 1, 
+                      borderRadius: 2, 
+                      bgcolor: averageScore >= 80 ? 'rgba(16, 185, 129, 0.2)' : 
+                              averageScore >= 60 ? 'rgba(245, 158, 11, 0.2)' : 
+                              'rgba(239, 68, 68, 0.2)',
+                      border: `1px solid ${
+                        averageScore >= 80 ? 'rgba(16, 185, 129, 0.4)' : 
+                        averageScore >= 60 ? 'rgba(245, 158, 11, 0.4)' : 
+                        'rgba(239, 68, 68, 0.4)'
+                      }`
+                    }}>
+                      <Typography fontWeight="medium" sx={{ 
+                        color: averageScore >= 80 ? 'rgb(16, 185, 129)' : 
+                               averageScore >= 60 ? 'rgb(245, 158, 11)' : 
+                               'rgb(239, 68, 68)' 
+                      }}>
+                        {averageScore >= 80 ? 'Excellent' : 
+                         averageScore >= 60 ? 'Good' : 
+                         'Needs Improvement'}
+                      </Typography>
+                    </Box>
+                  </Paper>
+                
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {questions.map((question, index) => (
+                      <Paper key={index} sx={{
+                        bgcolor: 'rgba(75, 85, 99, 0.7)',
+                        backdropFilter: 'blur(8px)',
+                        borderRadius: 4,
+                        border: '1px solid rgba(107, 114, 128, 0.5)',
+                        overflow: 'hidden'
+                      }}>
+                        <Box sx={{ p: 3 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                            <StyledAvatar sx={{ bgcolor: 'rgba(79, 70, 229, 0.2)' }}>{index + 1}</StyledAvatar>
+                            <Box>
+                              <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>Q: {question}</Typography>
+                              <Box sx={{ bgcolor: 'rgba(17, 24, 39, 0.4)', borderRadius: 2, p: 2, border: '1px solid rgba(107, 114, 128, 0.5)' }}>
+                                <Typography sx={{ fontStyle: 'italic', color: 'grey.300' }}>
+                                  You Replied: {answers[index] || "No answer provided"}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Box>
+                        </Box>
+                        
+                        {evaluations[index] && (
+                          <Box sx={{ bgcolor: 'rgba(17, 24, 39, 0.7)', p: 3, borderTop: '1px solid rgba(107, 114, 128, 0.5)' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                              <Avatar sx={{ bgcolor: 'rgba(139, 92, 246, 0.2)', border: '1px solid rgba(139, 92, 246, 0.3)', color: '#c4b5fd' }}>
+                                {evaluations[index].accuracy}%
+                              </Avatar>
+                              <Typography sx={{ color: 'grey.300' }}>{evaluations[index].response}</Typography>
+                            </Box>
+                          </Box>
+                        )}
+                      </Paper>
+                    ))}
+                  </Box>
+                </>
               )}
-            </div>
-          </div>
+            </Box>
+          </StyledPaper>
         )}
-      </div>
-    </div>
+      </Container>
+    </Box>
   );
 };
 

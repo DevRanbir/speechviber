@@ -1,36 +1,41 @@
 {
   "name": "speechviber",
+  "homepage": "https://devranbir.github.io/speechviber",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^7.0.1",
-    "@mui/material": "^7.0.1",
+    "@emotion/react": "^11.11.3",
+    "@emotion/styled": "^11.11.0",
+    "@heroicons/react": "^2.2.0",
+    "@mui/icons-material": "^5.15.3",
+    "@mui/material": "^5.15.3",
     "@techstark/opencv-js": "^4.10.0-release.1",
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.2.0",
+    "@testing-library/dom": "^9.3.3",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
-    "@vitejs/plugin-react": "^4.3.4",
-    "assemblyai": "^4.9.0",
-    "axios": "^1.8.4",
+    "@vitejs/plugin-react": "^4.2.1",
+    "assemblyai": "^4.1.0",
+    "axios": "^1.6.5",
     "face-api.js": "^0.22.2",
-    "framer-motion": "^12.6.2",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-router-dom": "^7.4.1",
+    "framer-motion": "^10.18.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^6.21.1",
     "react-scripts": "5.0.1",
+    "remark-gfm": "^4.0.1",
     "string-similarity": "^4.0.4",
-    "vite": "^6.2.3",
+    "vite": "^5.0.11",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "deploy": "gh-pages -d build"
+    "eject": "react-scripts eject"
   },
   "browserslist": {
     "production": [
@@ -46,6 +51,5 @@
   },
   "devDependencies": {
     "gh-pages": "^6.3.0"
-  },
-  "homepage": "https://devranbir.github.io/speechviber"
+  }
 }

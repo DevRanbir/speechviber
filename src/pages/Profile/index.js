@@ -165,6 +165,7 @@ const SpeechProfileDashboard = ({
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
       py: 6,
+      pr: '90px' // Added right padding of 90px
     }}>
       <Container maxWidth="lg">
         <motion.div

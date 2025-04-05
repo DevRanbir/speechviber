@@ -1,486 +1,647 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Grid,
   Typography,
   Button,
+  Card,
   CardContent,
+  Avatar,
+  Chip,
+  Divider,
   IconButton,
   LinearProgress,
-  Card,
+  Stack,
+  Tooltip,
+  useTheme,
+  Container,
+  Badge
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+
+// Import Icons
+import MicIcon from '@mui/icons-material/Mic';
+import PersonIcon from '@mui/icons-material/Person';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
+import HistoryIcon from '@mui/icons-material/History';
+import SpeedIcon from '@mui/icons-material/Speed';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
-import { useNavigate } from 'react-router-dom';
-import AssignmentIcon from '@mui/icons-material/Assignment';
-import PersonSearchIcon from '@mui/icons-material/PersonSearch';
-import SpeedIcon from '@mui/icons-material/Speed';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import MicIcon from '@mui/icons-material/Mic';
-import HistoryIcon from '@mui/icons-material/History';
-import InsightsIcon from '@mui/icons-material/Insights';
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import CelebrationIcon from '@mui/icons-material/Celebration';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import StarIcon from '@mui/icons-material/Star';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
 
 // Styled components
-const GlassCard = styled(motion.div)(({ theme }) => ({
-  background: 'rgba(30, 41, 59, 0.4)',
-  backdropFilter: 'blur(20px)',
-  borderRadius: 24,
-  border: '1px solid rgba(124, 58, 237, 0.1)',
-  overflow: 'hidden',
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-  transition: 'all 0.3s ease-in-out',
+const GradientButton = styled(Button)(({ theme }) => ({
+  borderRadius: 12,
+  padding: '12px 24px',
+  fontWeight: 600,
+  textTransform: 'none',
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'translateY(-3px)',
+    boxShadow: `0 10px 20px rgba(${theme.palette.primary.main}, 0.3)`,
+  }
+}));
+
+const FeatureCard = styled(motion(Card))(({ theme }) => ({
   height: '100%',
+  borderRadius: 16,
+  background: theme.palette.mode === 'dark' 
+    ? 'rgba(26, 32, 44, 0.7)' 
+    : 'rgba(255, 255, 255, 0.9)',
+  backdropFilter: 'blur(10px)',
+  border: `1px solid ${theme.palette.divider}`,
+  transition: 'all 0.3s ease',
+  overflow: 'hidden',
   '&:hover': {
     transform: 'translateY(-5px)',
-    boxShadow: '0 12px 40px rgba(124, 58, 237, 0.2)',
-    border: '1px solid rgba(124, 58, 237, 0.3)',
+    boxShadow: theme.shadows[10],
+    borderColor: theme.palette.primary.light,
   }
 }));
 
-const AnimatedValue = styled(Typography)(({ theme }) => ({
-  background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
-  WebkitBackgroundClip: 'text',
-  WebkitTextFillColor: 'transparent',
-  fontWeight: 'bold',
-}));
-
-const GlowingIcon = styled(Box)(({ theme }) => ({
+const CircularProgressContainer = styled(Box)(({ theme, value }) => ({
   position: 'relative',
-  padding: theme.spacing(2),
+  width: 60,
+  height: 60,
   borderRadius: '50%',
-  background: 'rgba(124, 58, 237, 0.1)',
-  '&::after': {
-    content: '""',
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: '140%',
-    height: '140%',
-    background: 'radial-gradient(circle, rgba(124, 58, 237, 0.2) 0%, rgba(124, 58, 237, 0) 70%)',
-    opacity: 0,
-    transition: 'opacity 0.3s ease',
-  },
-  '&:hover::after': {
-    opacity: 1,
-  }
-}));
-
-const StatCard = ({ title, value, icon, progress, delay }) => (
-  <GlassCard
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5, delay }}
-  >
-    <CardContent sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <GlowingIcon>
-          {icon}
-        </GlowingIcon>
-        <Box sx={{ ml: 2 }}>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
-            {title}
-          </Typography>
-          <AnimatedValue variant="h4">
-            {value}
-          </AnimatedValue>
-        </Box>
-      </Box>
-      <LinearProgress 
-        variant="determinate" 
-        value={progress} 
-        sx={{
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: 'rgba(124, 58, 237, 0.1)',
-          '& .MuiLinearProgress-bar': {
-            background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
-            borderRadius: 4,
-          }
-        }}
-      />
-    </CardContent>
-  </GlassCard>
-);
-
-const IconWrapper = styled(Box)(({ theme }) => ({
-  background: 'rgba(124, 58, 237, 0.1)',
-  borderRadius: '50%',
-  padding: theme.spacing(2),
-  marginRight: theme.spacing(2),
-  transition: 'all 0.3s ease',
-  '& svg': {
-    fontSize: '2rem',
-    color: '#7C3AED',
-  }
-}));
-
-const ActionButton = styled(Button)(({ theme }) => ({
+  background: `conic-gradient(
+    ${theme.palette.primary.main} ${value}%, 
+    ${theme.palette.background.paper} ${value}%
+  )`,
   display: 'flex',
   alignItems: 'center',
-  width: '100%',
-  height: '100%',
-  padding: theme.spacing(3),
-  textAlign: 'left',
-  background: 'rgba(30, 41, 59, 0.4)',
-  backdropFilter: 'blur(20px)',
-  borderRadius: 24,
-  border: '1px solid rgba(124, 58, 237, 0.1)',
-  transition: 'all 0.3s ease-in-out',
-  overflow: 'hidden',
-  position: 'relative',
-  justifyContent: 'flex-start',
+  justifyContent: 'center',
   '&::before': {
     content: '""',
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: 'linear-gradient(45deg, rgba(124, 58, 237, 0.1), rgba(59, 130, 246, 0.1))',
-    transform: 'translateX(-100%)',
-    transition: 'transform 0.6s ease-in-out',
-  },
-  '&:hover': {
-    transform: 'translateY(-5px)',
-    border: '1px solid rgba(124, 58, 237, 0.3)',
-    boxShadow: '0 12px 40px rgba(124, 58, 237, 0.2)',
-    '&::before': {
-      transform: 'translateX(0)',
-    },
+    top: '10%',
+    left: '10%',
+    right: '10%',
+    bottom: '10%',
+    borderRadius: '50%',
+    background: theme.palette.background.paper,
   }
 }));
 
-const SummaryCard = styled(Card)(({ theme }) => ({
-  background: 'rgba(30, 41, 59, 0.4)',
-  backdropFilter: 'blur(20px)',
-  borderRadius: 24,
-  border: '1px solid rgba(124, 58, 237, 0.1)',
-  padding: theme.spacing(3),
-  height: '100%',
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-  transition: 'all 0.3s ease-in-out',
-  '&:hover': {
-    boxShadow: '0 12px 40px rgba(124, 58, 237, 0.2)',
-    border: '1px solid rgba(124, 58, 237, 0.3)',
-  }
-}));
-
-const GradientText = styled(Typography)(({ theme }) => ({
-  background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
-  WebkitBackgroundClip: 'text',
-  WebkitTextFillColor: 'transparent',
+const CircularProgressValue = styled(Typography)(({ theme }) => ({
+  position: 'relative',
   fontWeight: 'bold',
+  zIndex: 1,
+}));
+
+const ActivityItem = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  padding: theme.spacing(1.5),
+  borderRadius: 12,
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    background: theme.palette.mode === 'dark' 
+      ? 'rgba(255, 255, 255, 0.05)' 
+      : 'rgba(0, 0, 0, 0.02)',
+  }
+}));
+
+const AchievementBadge = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  padding: theme.spacing(2),
+  borderRadius: 16,
+  background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.background.default} 100%)`,
+  border: `1px solid ${theme.palette.divider}`,
+  transition: 'all 0.3s ease',
+  '&:hover': {
+    transform: 'scale(1.05)',
+    boxShadow: theme.shadows[4],
+  }
 }));
 
 const Dashboard = () => {
+  const theme = useTheme();
   const navigate = useNavigate();
+  const [notifications] = useState(3);
 
-  const handlePracticeClick = () => {
-    navigate('/practice');
+  const handleNavigation = (path) => {
+    navigate(path);
   };
 
-  const handleInterviewClick = () => {
-    navigate('/interview');
-  };
+  const features = [
+    {
+      title: 'Practice Mode',
+      description: 'Enhance your skills with guided exercises',
+      icon: <MicIcon color="primary" fontSize="large" />,
+      path: '/practice',
+      color: theme.palette.primary.main,
+      delay: 0.1
+    },
+    {
+      title: 'Interview Simulator',
+      description: 'Prepare with AI-powered mock interviews',
+      icon: <PersonIcon color="secondary" fontSize="large" />,
+      path: '/interview',
+      color: theme.palette.secondary.main,
+      delay: 0.2
+    },
+    {
+      title: 'Speech Analysis',
+      description: 'Get detailed insights on your performance',
+      icon: <AnalyticsIcon sx={{ color: '#10B981' }} fontSize="large" />,
+      path: '/analysis',
+      color: '#10B981',
+      delay: 0.3
+    },
+    {
+      title: 'Progress Tracker',
+      description: 'Monitor your improvement over time',
+      icon: <HistoryIcon sx={{ color: '#F59E0B' }} fontSize="large" />,
+      path: '/history',
+      color: '#F59E0B',
+      delay: 0.4
+    }
+  ];
 
-  const handleAnalysisClick = () => {
-    navigate('/analysis');
-  };
+  const progressMetrics = [
+    { 
+      title: 'Overall Score', 
+      value: 85, 
+      icon: <TrendingUpIcon sx={{ color: theme.palette.primary.main }} />,
+      color: theme.palette.primary.main
+    },
+    { 
+      title: 'Clarity', 
+      value: 75, 
+      icon: <RecordVoiceOverIcon sx={{ color: theme.palette.secondary.main }} />,
+      color: theme.palette.secondary.main
+    },
+    { 
+      title: 'Fluency', 
+      value: 90, 
+      icon: <SpeedIcon sx={{ color: '#10B981' }} />,
+      color: '#10B981'
+    }
+  ];
 
-  const handleHistoryClick = () => {
-    navigate('/history');
-  };
+  const recentActivities = [
+    {
+      title: 'Mock Interview - Software Engineer',
+      time: '15 minutes ago',
+      icon: <MicIcon />,
+      color: theme.palette.primary.main,
+      completed: true
+    },
+    {
+      title: 'Quick Analysis - Presentation',
+      time: '18 minutes ago',
+      icon: <SpeedIcon />,
+      color: theme.palette.secondary.main,
+      completed: true
+    },
+    {
+      title: 'Practice Session - Public Speaking',
+      time: '1 hour ago',
+      icon: <RecordVoiceOverIcon />,
+      color: '#10B981',
+      completed: true
+    }
+  ];
+
+  const achievements = [
+    {
+      title: '5-Day Streak',
+      icon: <EmojiEventsIcon sx={{ color: '#F59E0B', fontSize: 32 }} />
+    },
+    {
+      title: 'Speech Master',
+      icon: <StarIcon sx={{ color: theme.palette.primary.main, fontSize: 32 }} />
+    },
+    {
+      title: 'First Analysis',
+      icon: <CheckCircleIcon sx={{ color: '#10B981', fontSize: 32 }} />
+    }
+  ];
 
   return (
-    <Box sx={{ 
-      p: { xs: 2, md: 4 },
-      width: '100%',
-      maxWidth: '100%',
-      boxSizing: 'border-box',
-      overflowX: 'hidden'
-    }}>
-      {/* Welcome Banner */}
+    <Container 
+      maxWidth="xl" 
+      sx={{ 
+        py: 4,
+        px: { xs: 3, sm: '24px' },
+        pr: { sm: '90px' }
+      }}
+    >
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Card sx={{ 
-          p: { xs: 2, md: 4 }, 
-          mb: 4, 
-          background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.1), rgba(59, 130, 246, 0.1))',
-          backdropFilter: 'blur(20px)',
-          borderRadius: 4,
-          border: '1px solid rgba(124, 58, 237, 0.2)',
-        }}>
-          <Grid container spacing={3} alignItems="center">
-            <Grid item xs={12} md={8}>
-              <GradientText variant="h3" sx={{ mb: 1, fontSize: { xs: '1.8rem', md: '2.5rem' } }}>
-                Welcome to @SpeechViber 
-              </GradientText>
-              <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary' }}>
-              Made by @Vibers, 
-              To Boost your communication skills with AI-powered analysis and feedback
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'text.secondary', mb: 2 }}>
-                Track your progress, analyze your performance, and practice with personalized exercises.
-              </Typography>
-              <Button 
-                variant="contained" 
-                size="large"
-                onClick={() => navigate('/practice')}
-                sx={{ 
-                  background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
-                  borderRadius: 8,
-                  py: 1.5,
-                  px: 4,
-                  '&:hover': {
-                    boxShadow: '0 4px 20px rgba(124, 58, 237, 0.4)',
-                  }
-                }}
-              >
-                Start Practicing Now
-              </Button>
+        {/* Header with User Info and Notifications */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+          <Box>
+            <Typography variant="h4" fontWeight="bold" sx={{ mb: 0.5 }}>
+              Welcome to <Box component="span" sx={{ color: theme.palette.primary.main }}>SpeechViber</Box>
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Let's improve your communication skills today
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Tooltip title="Notifications">
+              <IconButton>
+                <Badge badgeContent={notifications} color="error">
+                  <NotificationsIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+            <Avatar 
+              sx={{ 
+                background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                boxShadow: theme.shadows[3]
+              }}
+            >
+              U
+            </Avatar>
+          </Box>
+        </Box>
+
+        {/* Hero Banner */}
+        <Card 
+          elevation={0}
+          sx={{
+            mb: 4,
+            borderRadius: 4,
+            background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
+          <Box 
+            sx={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: '50%',
+              opacity: 0.1,
+              background: 'url("https://placeholder.com/800x400") no-repeat center center',
+              backgroundSize: 'cover',
+              display: { xs: 'none', md: 'block' }
+            }}
+          />
+          
+          <CardContent sx={{ p: { xs: 3, md: 4 } }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={7}>
+                <Box sx={{ position: 'relative', zIndex: 1 }}>
+                  <Chip 
+                    label="Made by @Vibers"
+                    size="small"
+                    sx={{ 
+                      mb: 2, 
+                      fontWeight: 500,
+                      background: 'rgba(255, 255, 255, 0.2)',
+                      backdropFilter: 'blur(5px)',
+                      color: 'white'
+                    }}
+                  />
+                  
+                  <Typography variant="h3" sx={{ mb: 2, color: 'white', fontWeight: 700 }}>
+                    Boost Your Communication Skills
+                  </Typography>
+                  
+                  <Typography variant="body1" sx={{ mb: 3, color: 'rgba(255, 255, 255, 0.8)' }}>
+                    Get AI-powered analysis and personalized feedback to improve your speaking abilities.
+                    Track your progress and practice with customized exercises.
+                  </Typography>
+                  
+                  <Stack direction="row" spacing={2}>
+                    <GradientButton 
+                      variant="contained"
+                      size="large"
+                      startIcon={<MicIcon />}
+                      onClick={() => navigate('/practice')}
+                      sx={{ 
+                        bgcolor: 'white',
+                        color: theme.palette.primary.main,
+                        '&:hover': {
+                          bgcolor: 'white',
+                        }
+                      }}
+                    >
+                      Start Practicing
+                    </GradientButton>
+                    
+                    <Button 
+                      variant="outlined"
+                      size="large"
+                      sx={{ 
+                        borderColor: 'rgba(255, 255, 255, 0.5)', 
+                        color: 'white',
+                        '&:hover': {
+                          borderColor: 'white',
+                          background: 'rgba(255, 255, 255, 0.1)'
+                        }
+                      }}
+                      endIcon={<ArrowForwardIcon />}
+                    >
+                      Learn More
+                    </Button>
+                  </Stack>
+                </Box>
+              </Grid>
             </Grid>
-          </Grid>
+          </CardContent>
         </Card>
-      </motion.div>
 
-      <Grid container spacing={4}>
-        {/* Quick Actions Section */}
-        <Grid item xs={12} md={8}>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-              Tools & Features
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-              Explore our powerful features to improve your speech performance
-            </Typography>
-          </Box>
-          
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6} lg={4}>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                style={{ height: '100%' }}
-              >
-                <ActionButton onClick={handlePracticeClick}>
-                  <IconWrapper>
-                    <MicIcon />
-                  </IconWrapper>
-                  <Box>
-                    <Typography variant="h6" sx={{ color: 'text.primary', mb: 0.5 }}>
-                      Practice Mode
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      Speech exercises with feedback
-                    </Typography>
-                  </Box>
-                </ActionButton>
-              </motion.div>
-            </Grid>
-            <Grid item xs={12} sm={6} lg={4}>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                style={{ height: '100%' }}
-              >
-                <ActionButton onClick={handleInterviewClick}>
-                  <IconWrapper>
-                    <PersonSearchIcon />
-                  </IconWrapper>
-                  <Box>
-                    <Typography variant="h6" sx={{ color: 'text.primary', mb: 0.5 }}>
-                      Interview Simulator
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      AI-powered mock interviews
-                    </Typography>
-                  </Box>
-                </ActionButton>
-              </motion.div>
-            </Grid>
-            <Grid item xs={12} sm={6} lg={4}>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                style={{ height: '100%' }}
-              >
-                <ActionButton onClick={handleAnalysisClick}>
-                  <IconWrapper>
-                    <InsightsIcon />
-                  </IconWrapper>
-                  <Box>
-                    <Typography variant="h6" sx={{ color: 'text.primary', mb: 0.5 }}>
-                      Speech Analysis
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      Get detailed performance insights
-                    </Typography>
-                  </Box>
-                </ActionButton>
-              </motion.div>
-            </Grid>
-            <Grid item xs={12} sm={6} lg={4}>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                style={{ height: '100%' }}
-              >
-                <ActionButton onClick={handleHistoryClick}>
-                  <IconWrapper>
-                    <HistoryIcon />
-                  </IconWrapper>
-                  <Box>
-                    <Typography variant="h6" sx={{ color: 'text.primary', mb: 0.5 }}>
-                      History & Progress
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      Track your improvement over time
-                    </Typography>
-                  </Box>
-                </ActionButton>
-              </motion.div>
-            </Grid>
-          </Grid>
-          
-          {/* Recent Activity */}
-          <Box sx={{ mt: 4 }}>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'text.primary', mb: 2 }}>
-              Recent Activity
-            </Typography>
-            <SummaryCard>
-              <Box sx={{ p: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, pb: 2, borderBottom: '1px solid rgba(124, 58, 237, 0.1)' }}>
-                  <IconWrapper sx={{ padding: 1.5 }}>
-                    <MicIcon sx={{ fontSize: '1.5rem' }} />
-                  </IconWrapper>
-                  <Box sx={{ ml: 1 }}>
-                    <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 'bold' }}>
-                      Mock Interview - Software Engineer
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      15 minutes ago
-                    </Typography>
-                  </Box>
+        <Grid container spacing={3}>
+          {/* Progress Dashboard */}
+          <Grid item xs={12} lg={4}>
+            <Card elevation={0} sx={{ borderRadius: 3, mb: 3, border: `1px solid ${theme.palette.divider}` }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6" fontWeight="bold">
+                    Performance Dashboard
+                  </Typography>
+                  <Chip 
+                    label="Last 30 days" 
+                    size="small" 
+                    color="primary" 
+                    variant="outlined" 
+                    sx={{ borderRadius: 1.5 }}
+                  />
                 </Box>
                 
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, pb: 2, borderBottom: '1px solid rgba(124, 58, 237, 0.1)' }}>
-                  <IconWrapper sx={{ padding: 1.5 }}>
-                    <SpeedIcon sx={{ fontSize: '1.5rem' }} />
-                  </IconWrapper>
-                  <Box sx={{ ml: 1 }}>
-                    <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 'bold' }}>
-                      Quick Analysis - Presentation
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      18 minutes ago
-                    </Typography>
-                  </Box>
-                </Box>
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  {progressMetrics.map((metric, index) => (
+                    <Grid item xs={12} key={index}>
+                      <Card 
+                        variant="outlined" 
+                        sx={{ 
+                          borderRadius: 2, 
+                          boxShadow: 'none',
+                          mb: 1,
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            borderColor: metric.color,
+                            boxShadow: `0 4px 12px rgba(0, 0, 0, 0.05)`
+                          }
+                        }}
+                      >
+                        <CardContent sx={{ p: 2 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <Avatar sx={{ bgcolor: `${metric.color}15`, color: metric.color }}>
+                                {metric.icon}
+                              </Avatar>
+                              <Box>
+                                <Typography variant="body2" color="text.secondary">
+                                  {metric.title}
+                                </Typography>
+                                <Typography variant="h6" fontWeight="bold">
+                                  {metric.value}%
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <CircularProgressContainer value={metric.value}>
+                              <CircularProgressValue variant="caption" fontWeight="bold">
+                                {metric.value}%
+                              </CircularProgressValue>
+                            </CircularProgressContainer>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
                 
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <IconWrapper sx={{ padding: 1.5 }}>
-                    <AssignmentIcon sx={{ fontSize: '1.5rem' }} />
-                  </IconWrapper>
-                  <Box sx={{ ml: 1 }}>
-                    <Typography variant="body1" sx={{ color: 'text.primary', fontWeight: 'bold' }}>
-                      Practice Session - Public Speaking
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="subtitle2" fontWeight="500" sx={{ mb: 1 }}>
+                    Weekly Improvement
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="h5" fontWeight="bold" sx={{ mr: 1 }}>
+                      +15%
                     </Typography>
-                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                      1 Hr ago
-                    </Typography>
+                    <TrendingUpIcon color="success" />
                   </Box>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={65} 
+                    sx={{
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: `${theme.palette.primary.main}20`,
+                      '& .MuiLinearProgress-bar': {
+                        borderRadius: 4,
+                        background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`
+                      }
+                    }}
+                  />
                 </Box>
-              </Box>
-            </SummaryCard>
-          </Box>
-        </Grid>
+              </CardContent>
+            </Card>
 
-        {/* Stats and Progress Section */}
-        <Grid item xs={12} md={4}>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-              Your Performance
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-              Key metrics and progress indicators
-            </Typography>
-          </Box>
-          
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <StatCard
-                title="Overall Speech Score"
-                value="85%"
-                icon={<TrendingUpIcon sx={{ color: '#7C3AED' }} />}
-                progress={85}
-                delay={0.1}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <StatCard
-                title="Clarity & Pronunciation"
-                value="Good"
-                icon={<RecordVoiceOverIcon sx={{ color: '#3B82F6' }} />}
-                progress={75}
-                delay={0.2}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <StatCard
-                title="Speaking Fluency"
-                value="Excellent"
-                icon={<SpeedIcon sx={{ color: '#10B981' }} />}
-                progress={90}
-                delay={0.3}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <StatCard
-                title="Monthly Progress"
-                value="+15%"
-                icon={<BarChartIcon sx={{ color: '#F59E0B' }} />}
-                progress={65}
-                delay={0.4}
-              />
-            </Grid>
-          </Grid>
-          
-          {/* Achievement Card */}
-          <Box sx={{ mt: 3, maxWidth: '100%'}}>
-            <SummaryCard>
-              <Typography variant="h6" sx={{ mb: 2, color: 'text.primary', fontWeight: 'bold', width: '100%'}}>
-                Recent Achievement
-              </Typography>
-              <Box sx={{ textAlign: 'center', py: 2 }}>
-                <IconButton sx={{ 
-                  background: 'rgba(124, 58, 237, 0.1)', 
-                  p: 2, 
-                  mb: 2,
-                  '&:hover': { background: 'rgba(124, 58, 237, 0.2)' } 
-                }}>
-                  <EmojiEventsIcon sx={{ fontSize: 40, color: '#F59E0B' }} />
-                </IconButton>
-                <GradientText variant="h6">5-Day Streak!</GradientText>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
-                  You've practiced for 5 consecutive days. Keep it up!
+            {/* Daily Tip */}
+            <Card 
+              elevation={0} 
+              sx={{ 
+                borderRadius: 3, 
+                mb: 3, 
+                background: `linear-gradient(135deg, ${theme.palette.secondary.light}20, ${theme.palette.secondary.main}20)`,
+                border: `1px solid ${theme.palette.divider}`
+              }}
+            >
+              <CardContent sx={{ p: 2.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
+                  <Avatar sx={{ bgcolor: theme.palette.secondary.main }}>
+                    <TipsAndUpdatesIcon />
+                  </Avatar>
+                  <Typography variant="h6" fontWeight="600">
+                    Daily Speaking Tip
+                  </Typography>
+                </Box>
+
+                <Typography variant="body2" sx={{ mb: 2 }}>
+                  Practice "diaphragmatic breathing" to support your voice. Breathe deeply from your 
+                  diaphragm rather than your chest for better speech control and reduced nervousness.
                 </Typography>
-              </Box>
-            </SummaryCard>
-          </Box>
+
+                <Button 
+                  size="small" 
+                  endIcon={<ArrowForwardIcon />} 
+                  sx={{ color: theme.palette.secondary.main }}
+                >
+                  More Tips
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Main Content */}
+          <Grid item xs={12} lg={8}>
+            {/* Features */}
+            <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+              Key Features
+            </Typography>
+            
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              {features.map((feature, index) => (
+                <Grid item xs={12} sm={6} key={index}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: feature.delay }}
+                    style={{ height: '100%' }}
+                  >
+                    <FeatureCard 
+                      elevation={0} 
+                      onClick={() => handleNavigation(feature.path)}
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      <CardContent sx={{ p: 3 }}>
+                        <Avatar 
+                          sx={{ 
+                            mb: 2, 
+                            width: 56, 
+                            height: 56,
+                            bgcolor: `${feature.color}15`,
+                            color: feature.color
+                          }}
+                        >
+                          {feature.icon}
+                        </Avatar>
+                        
+                        <Typography variant="h6" fontWeight="bold" sx={{ mb: 1 }}>
+                          {feature.title}
+                        </Typography>
+                        
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          {feature.description}
+                        </Typography>
+                        
+                        <Button 
+                          size="small" 
+                          sx={{ color: feature.color }}
+                          endIcon={<ArrowForwardIcon />}
+                        >
+                          Explore
+                        </Button>
+                      </CardContent>
+                    </FeatureCard>
+                  </motion.div>
+                </Grid>
+              ))}
+            </Grid>
+
+            {/* Recent Activity and Achievements */}
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={7}>
+                <Card elevation={0} sx={{ borderRadius: 3, mb: { xs: 3, md: 0 }, border: `1px solid ${theme.palette.divider}` }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6" fontWeight="bold">
+                        Recent Activity
+                      </Typography>
+                      <Button size="small" endIcon={<ArrowForwardIcon />}>
+                        View All
+                      </Button>
+                    </Box>
+
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    <Stack spacing={1}>
+                      {recentActivities.map((activity, index) => (
+                        <ActivityItem key={index}>
+                          <Avatar 
+                            sx={{ 
+                              mr: 2, 
+                              bgcolor: `${activity.color}15`,
+                              color: activity.color
+                            }}
+                          >
+                            {activity.icon}
+                          </Avatar>
+                          <Box sx={{ flexGrow: 1 }}>
+                            <Typography variant="body1" fontWeight="500">
+                              {activity.title}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {activity.time}
+                            </Typography>
+                          </Box>
+                          {activity.completed && (
+                            <Chip 
+                              size="small" 
+                              label="Completed" 
+                              sx={{ 
+                                bgcolor: '#10B98120', 
+                                color: '#10B981',
+                                fontWeight: 500
+                              }} 
+                            />
+                          )}
+                        </ActivityItem>
+                      ))}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              <Grid item xs={12} md={5}>
+                <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6" fontWeight="bold">
+                        Achievements
+                      </Typography>
+                      <Chip 
+                        icon={<CelebrationIcon fontSize="small" />} 
+                        label="3 New" 
+                        size="small" 
+                        color="primary" 
+                        sx={{ borderRadius: 1.5 }}
+                      />
+                    </Box>
+                    
+                    <Grid container spacing={2}>
+                      {achievements.map((achievement, index) => (
+                        <Grid item xs={4} key={index}>
+                          <AchievementBadge>
+                            {achievement.icon}
+                            <Typography variant="caption" align="center" sx={{ mt: 1, fontWeight: 500 }}>
+                              {achievement.title}
+                            </Typography>
+                          </AchievementBadge>
+                        </Grid>
+                      ))}
+                    </Grid>
+                    
+                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+                      <Button 
+                        variant="text" 
+                        size="small"
+                        endIcon={<ArrowForwardIcon />}
+                      >
+                        All Badges
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          </Grid>
         </Grid>
-      </Grid>
-    </Box>
+      </motion.div>
+    </Container>
   );
 };
 

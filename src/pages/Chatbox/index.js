@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Typography, Button, Paper, Stack, CircularProgress, TextField, Snackbar, Alert, IconButton, Tooltip } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-// Moved API key to environment variable pattern
-// In a real app, you would use process.env.REACT_APP_GEMINI_API_KEY
-const API_KEY = "AIzaSyDtTaeo58Dzie60E-F2l3SVFmCdkCegrsk"; 
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+// Icons
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+
+// Updated API configuration to use Groq
+const API_KEY = "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"; 
+const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const Chatbox = () => {
+  const navigate = useNavigate();
   // State management
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [options, setOptions] = useState([]);
@@ -84,13 +88,19 @@ const Chatbox = () => {
       - The options are challenging to distinguish between for a ${selectedDifficulty} level question
       - Both options should sound plausible but one should be more effective for the given scenario`;
 
+      // Updated API call to use Groq
       const response = await axios.post(API_URL, {
-        contents: [{
-          parts: [{ text: basePrompt }]
-        }]
+        model: "gemma2-9b-it",
+        messages: [{ role: "user", content: basePrompt }]
+      }, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        }
       });
 
-      let generatedContent = response.data.candidates[0].content.parts[0].text;
+      // Updated response parsing for Groq API format
+      let generatedContent = response.data.choices[0].message.content;
       
       // Clean the response by removing markdown formatting
       generatedContent = generatedContent.replace(/```json\n|```/g, '').trim();
@@ -207,10 +217,32 @@ const Chatbox = () => {
     setIsReviewing(!isReviewing);
   };
 
+  // Add goBack function
+  const goBack = () => {
+    navigate('/practice');
+  };
+
   // Setup screen
   if (!isInterviewStarted) {
     return (
-      <Box sx={{ p: 3, maxWidth: 800, mx: 'auto' }}>
+      <Box sx={{ p: 3, maxWidth: 800, mx: 'auto', position: 'relative' }}>
+        <Button
+          onClick={goBack}
+          startIcon={<ArrowBackIcon />}
+          sx={{
+            position: 'absolute',
+            right: 24,
+            top: 24,
+            color: 'white',
+            borderColor: 'rgba(255, 255, 255, 0)',
+            '&:hover': {
+              borderColor: 'rgba(255, 255, 255, 0.5)',
+            }
+          }}
+          variant="outlined"
+        >
+          Go Back
+        </Button>
         <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
           <Typography variant="h4" gutterBottom sx={{ mb: 4 }}>
             Interview Practice Setup
