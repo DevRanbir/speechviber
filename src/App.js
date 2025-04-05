@@ -20,7 +20,6 @@ import AIMentor from './pages/AIMentor';
 
 function App() {
   const [mode] = useState('dark');
-  const basename = '/speechviber'; // Add basename for GitHub Pages
 
   const theme = useMemo(
     () =>
@@ -44,23 +43,23 @@ function App() {
       <CssBaseline />
       <Layout>
         <Routes>
-          <Route path={`${basename}/`} element={<Navigate to={`${basename}/dashboard`} replace />} />
-          <Route path={`${basename}/dashboard`} element={<Dashboard />} />
-          <Route path={`${basename}/interview`} element={<Interview />} />
-          <Route path={`${basename}/practice`} element={<Practice />} />
-          <Route path={`${basename}/analysis`} element={<Analysis />} />
-          <Route path={`${basename}/profile`} element={<Profile />} />
-          <Route path={`${basename}/settings`} element={<Settings />} />
-          <Route path={`${basename}/chatbox`} element={<Chatbox />} />
-          <Route path={`${basename}/grammarcheck`} element={<GrammarCheck />} />
-          <Route path={`${basename}/pronunciation`} element={<Pronunciation />} />
-          <Route path={`${basename}/wordpower`} element={<WordPower />} />
-          <Route path={`${basename}/debatemode`} element={<DebateMode />} />
-          <Route path={`${basename}/presentandlearn`} element={<PresentAndLearn />} />
-          <Route path={`${basename}/storytime`} element={<StoryTime />} />
-          <Route path={`${basename}/AIMentor`} element={<AIMentor />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/interview" element={<Interview />} />
+          <Route path="/practice" element={<Practice />} />
+          <Route path="/analysis" element={<Analysis />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/chatbox" element={<Chatbox />} />
+          <Route path="/grammarcheck" element={<GrammarCheck />} />
+          <Route path="/pronunciation" element={<Pronunciation />} />
+          <Route path="/wordpower" element={<WordPower />} />
+          <Route path="/debatemode" element={<DebateMode />} />
+          <Route path="/presentandlearn" element={<PresentAndLearn />} />
+          <Route path="/storytime" element={<StoryTime />} />
+          <Route path="/AIMentor" element={<AIMentor />} />
 
-          <Route path="*" element={<Navigate to={`${basename}/dashboard`} replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Layout>
     </MuiThemeProvider>
