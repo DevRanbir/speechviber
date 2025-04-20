@@ -5,15 +5,21 @@ import { motion } from 'framer-motion';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import PracticeLine from './PracticeLine';
 import { useNavigate } from 'react-router-dom';
+import { getDatabase, ref, push } from 'firebase/database';
+import { useAuth } from '../../contexts/AuthContext';
+import { useErrorBoundary } from '../../hooks/useErrorBoundary';
 
 const API_KEY = "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";
 const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const GrammarCheck = () => {
+  useErrorBoundary();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [text, setText] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [dataSaved, setDataSaved] = useState(false);
 
   const handlePaste = async () => {
     try {
@@ -27,6 +33,7 @@ const GrammarCheck = () => {
   const checkGrammar = async () => {
     if (!text.trim()) return;
     setLoading(true);
+    setDataSaved(false);
     
     try {
       const response = await fetch(API_URL, {
@@ -79,6 +86,33 @@ const GrammarCheck = () => {
         .trim();
 
       setResult({ scores, mistakes, corrected });
+      
+      // Save grammar check data to Firebase
+      if (currentUser) {
+        try {
+          const database = getDatabase();
+          const grammarCheckData = {
+            time: new Date().toISOString(),
+            grammarScore: parseInt(scores.grammar) || 0,
+            structureScore: parseInt(scores.structure) || 0,
+            punctuationScore: parseInt(scores.punctuation) || 0
+          };
+
+          const grammarCheckRef = ref(
+            database, 
+            `users/${currentUser.uid}/grammar-check/${Date.now()}`
+          );
+          
+          push(grammarCheckRef, grammarCheckData)
+            .then(() => {
+              console.log('Grammar check data saved successfully');
+              setDataSaved(true);
+            })
+            .catch(error => console.error('Error saving grammar check data:', error));
+        } catch (error) {
+          console.error('Error saving to database:', error);
+        }
+      }
     } catch (error) {
       console.error('Error:', error);
       setResult(null);
@@ -189,8 +223,6 @@ const GrammarCheck = () => {
       transition={{ duration: 0.5 }}
     >
       <Box sx={{ 
-        minHeight: '93vh',
-        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
         p: 3,
         pr: '90px'  // Added right padding
       }}>

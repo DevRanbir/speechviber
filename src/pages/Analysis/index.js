@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Box, Typography, Button, Container, LinearProgress, Paper, Card, CardContent,
   Avatar, Chip, Grid, CircularProgress, Divider
@@ -9,6 +9,8 @@ import { styled } from '@mui/material/styles';
 import { 
   Mic, MicOff, NavigateNext, Refresh, Quiz, Assessment, ArrowBack
 } from '@mui/icons-material';
+import axios from 'axios';
+import { useErrorBoundary } from '../../hooks/useErrorBoundary';
 
 // API key
 const API_KEY = "AIzaSyDtTaeo58Dzie60E-F2l3SVFmCdkCegrsk";
@@ -54,13 +56,6 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
   position: 'relative',
   overflow: 'hidden',
   boxShadow: theme.shadows[10],
-}));
-
-const FeatureCard = styled(Card)(({ theme }) => ({
-  backgroundColor: 'rgba(31, 41, 55, 0.4)',
-  backdropFilter: 'blur(8px)',
-  border: '1px solid rgba(107, 114, 128, 0.5)',
-  borderRadius: '12px',
 }));
 
 const StyledAvatar = styled(Avatar)(({ theme }) => ({
@@ -112,7 +107,19 @@ const RecordingIndicator = styled('span')({
   },
 });
 
+// Add useNavigate to the imports at the top
+import { useNavigate } from 'react-router-dom';
+
+// Add Firebase imports at the top with the other imports
+import { getDatabase, ref, push } from 'firebase/database';
+import { useAuth } from '../../contexts/AuthContext';
+
 const InterviewSimulator = () => {
+  useErrorBoundary();
+  // Add currentUser from AuthContext
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
+
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState([]);
@@ -124,6 +131,11 @@ const InterviewSimulator = () => {
   const [showIntro, setShowIntro] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [averageScore, setAverageScore] = useState(0);
+  const [dataSaved, setDataSaved] = useState(false); // Add state to track if data was saved
+  
+  // For audio recording
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   // Fetch questions from API on component mount
   useEffect(() => {
@@ -138,7 +150,7 @@ const InterviewSimulator = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{
-            parts: [{ text: "Generate 4 job interview questions starting with tell me about yourself. Return only the 4 questions as a JSON array with no additional text." }]
+            parts: [{ text: "Generate 4 job interview questions,first question should be tell me about yourself related. Return only the 4 questions as a JSON array with no additional text such that user sets 15 seconds on each question." }]
           }]
         })
       });
@@ -199,31 +211,72 @@ const InterviewSimulator = () => {
     return () => clearInterval(timer);
   }, [isListening, timeLeft]);
 
-  const startListening = () => {
+  const startListening = async () => {
     setTimeLeft(15);
     setIsListening(true);
     
-    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    recognition.lang = 'en-US';
-    recognition.continuous = true;
-    recognition.start();
-    
-    recognition.onresult = function(event) {
-      const transcript = event.results[0][0].transcript;
-      setAnswers(prev => {
-        const newAnswers = [...prev];
-        newAnswers[currentQuestionIndex] = transcript;
-        return newAnswers;
-      });
-    };
-
-    recognition.onerror = function(event) {
-      console.error('Speech recognition error:', event.error);
-    };
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        
+        // Create a FormData object to send the audio file
+        const formData = new FormData();
+        formData.append('file', audioBlob, 'recording.wav');
+        formData.append('model', 'distil-whisper-large-v3-en');
+        
+        try {
+          const response = await axios.post(
+            'https://api.groq.com/openai/v1/audio/transcriptions',
+            formData,
+            {
+              headers: {
+                'Authorization': 'Bearer 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',
+                'Content-Type': 'multipart/form-data'
+              }
+            }
+          );
+          
+          // Set the answer for the current question
+          setAnswers(prev => {
+            const newAnswers = [...prev];
+            newAnswers[currentQuestionIndex] = response.data.text;
+            return newAnswers;
+          });
+          
+        } catch (err) {
+          console.error("Speech-to-text error:", err);
+        }
+      };
+      
+      mediaRecorder.start();
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      setIsListening(false);
+    }
   };
 
   const stopListening = () => {
     setIsListening(false);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      
+      // Also stop all tracks in the stream
+      const stream = mediaRecorderRef.current.stream;
+      const tracks = stream.getTracks();
+      tracks.forEach(track => track.stop());
+    }
   };
 
   const nextQuestion = () => {
@@ -257,9 +310,39 @@ const InterviewSimulator = () => {
       .map(result => parseInt(result.accuracy))
       .filter(score => !isNaN(score));
     
+    let avgScore = 0;
     if (scores.length > 0) {
-      const avg = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-      setAverageScore(Math.round(avg));
+      avgScore = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+      setAverageScore(avgScore);
+    }
+    
+    // Save data to Firebase
+    if (currentUser) {
+      try {
+        const database = getDatabase();
+        const interviewData = {
+          time: new Date().toISOString(),
+          averageScore: avgScore,
+          questionScores: evaluationResults.map((result, index) => ({
+            question: questions[index],
+            score: parseInt(result.accuracy) || 0
+          }))
+        };
+
+        const fasttractRef = ref(
+          database, 
+          `users/${currentUser.uid}/fasttractanalysis/${Date.now()}`
+        );
+        
+        push(fasttractRef, interviewData)
+          .then(() => {
+            console.log('Interview data saved successfully');
+            setDataSaved(true);
+          })
+          .catch(error => console.error('Error saving interview data:', error));
+      } catch (error) {
+        console.error('Error saving to database:', error);
+      }
     }
     
     setIsEvaluating(false);
@@ -318,9 +401,9 @@ const InterviewSimulator = () => {
     fetchQuestions();
   };
 
+  // Update the goBack function
   const goBack = () => {
-    // Navigate to the practice page instead of showing intro
-    window.location.href = '/practice';
+    navigate('/practice');
   };
 
   // Calculate progress percentage
@@ -339,7 +422,6 @@ const InterviewSimulator = () => {
       <Box sx={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #111827, #312e81)', color: 'white', padding: 3, display: 'flex', alignItems: 'center' }}>
         <Container maxWidth="md">
           <StyledPaper>
-            {/* Decorative elements */}
             <Box sx={{ position: 'absolute', top: -100, right: -100, width: 200, height: 200, bgcolor: 'rgba(79, 70, 229, 0.2)', borderRadius: '50%', filter: 'blur(40px)' }} />
             <Box sx={{ position: 'absolute', bottom: -100, left: -100, width: 200, height: 200, bgcolor: 'rgba(139, 92, 246, 0.2)', borderRadius: '50%', filter: 'blur(40px)' }} />
             
@@ -355,23 +437,23 @@ const InterviewSimulator = () => {
               
               <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid item xs={12} sm={6}>
-                  <FeatureCard>
+                  <Card sx={{ bgcolor: 'rgba(31, 41, 55, 0.4)', backdropFilter: 'blur(8px)', border: '1px solid rgba(107, 114, 128, 0.5)', borderRadius: '12px' }}>
                     <CardContent sx={{ p: 3 }}>
                       <Avatar sx={{ bgcolor: 'rgba(139, 92, 246, 0.2)', border: '1px solid rgba(139, 92, 246, 0.3)', mb: 2 }}><Mic /></Avatar>
                       <Typography variant="h6" fontWeight="medium" sx={{ color: 'grey.200', mb: 1 }}>Voice Recognition</Typography>
                       <Typography variant="body2" sx={{ color: 'grey.400' }}>Speak your answers naturally like in a real interview</Typography>
                     </CardContent>
-                  </FeatureCard>
+                  </Card>
                 </Grid>
                 
                 <Grid item xs={12} sm={6}>
-                  <FeatureCard>
+                  <Card sx={{ bgcolor: 'rgba(31, 41, 55, 0.4)', backdropFilter: 'blur(8px)', border: '1px solid rgba(107, 114, 128, 0.5)', borderRadius: '12px' }}>
                     <CardContent sx={{ p: 3 }}>
                       <Avatar sx={{ bgcolor: 'rgba(79, 70, 229, 0.2)', border: '1px solid rgba(79, 70, 229, 0.3)', mb: 2 }}><Assessment /></Avatar>
                       <Typography variant="h6" fontWeight="medium" sx={{ color: 'grey.200', mb: 1 }}>AI Feedback</Typography>
                       <Typography variant="body2" sx={{ color: 'grey.400' }}>Receive detailed evaluations for all your responses</Typography>
                     </CardContent>
-                  </FeatureCard>
+                  </Card>
                 </Grid>
               </Grid>
               
@@ -447,12 +529,10 @@ const InterviewSimulator = () => {
         
         {!testComplete ? (
           <StyledPaper>
-            {/* Decorative elements */}
             <Box sx={{ position: 'absolute', bottom: -100, right: -100, width: 200, height: 200, bgcolor: 'rgba(79, 70, 229, 0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
             <Box sx={{ position: 'absolute', top: -100, left: -100, width: 200, height: 200, bgcolor: 'rgba(139, 92, 246, 0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
             
             <Box sx={{ position: 'relative', zIndex: 1 }}>
-              {/* Progress bar */}
               <Box sx={{ mb: 4 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                   <Typography variant="body2" sx={{ color: 'primary.light' }}>Progress: </Typography>
@@ -464,7 +544,6 @@ const InterviewSimulator = () => {
                 }} />
               </Box>
 
-              {/* Question card */}
               <Paper sx={{ bgcolor: 'rgba(31, 41, 55, 0.7)', backdropFilter: 'blur(8px)', p: 4, borderRadius: 4, border: '1px solid rgba(107, 114, 128, 0.5)', mb: 4 }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 3, mb: 3 }}>
                   <StyledAvatar sx={{ width: 64, height: 64 }}>{currentQuestionIndex + 1}</StyledAvatar>
@@ -481,7 +560,6 @@ const InterviewSimulator = () => {
                 )}
               </Paper>
 
-              {/* Action buttons */}
               <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
                   {isListening ? (
@@ -504,7 +582,6 @@ const InterviewSimulator = () => {
           </StyledPaper>
         ) : (
           <StyledPaper>
-            {/* Decorative elements */}
             <Box sx={{ position: 'absolute', top: -100, left: -100, width: 200, height: 200, bgcolor: 'rgba(139, 92, 246, 0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
             <Box sx={{ position: 'absolute', bottom: -100, right: -100, width: 200, height: 200, bgcolor: 'rgba(79, 70, 229, 0.1)', borderRadius: '50%', filter: 'blur(40px)' }} />
             
@@ -516,20 +593,18 @@ const InterviewSimulator = () => {
                 </Box>
                 
                 {!isEvaluating && (
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button
-                      variant="outlined"
-                      onClick={restartInterview}
-                      startIcon={<Refresh />}
-                      sx={{
-                        color: 'grey.300', 
-                        borderColor: 'rgba(107, 114, 128, 0.5)',
-                        '&:hover': { borderColor: 'grey.300' }
-                      }}
-                    >
-                      Try Again
-                    </Button>
-                  </Box>
+                  <Button
+                    variant="outlined"
+                    onClick={restartInterview}
+                    startIcon={<Refresh />}
+                    sx={{
+                      color: 'grey.300', 
+                      borderColor: 'rgba(107, 114, 128, 0.5)',
+                      '&:hover': { borderColor: 'grey.300' }
+                    }}
+                  >
+                    Try Again
+                  </Button>
                 )}
               </Box>
               
@@ -541,7 +616,6 @@ const InterviewSimulator = () => {
                 </Box>
               ) : (
                 <>
-                  {/* Average Score Section */}
                   <Paper sx={{ 
                     bgcolor: 'rgba(31, 41, 55, 0.7)', 
                     backdropFilter: 'blur(8px)', 
@@ -606,30 +680,45 @@ const InterviewSimulator = () => {
                         border: '1px solid rgba(107, 114, 128, 0.5)',
                         overflow: 'hidden'
                       }}>
+                        {/* Remove the duplicate Paper component here */}
                         <Box sx={{ p: 3 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                            <StyledAvatar sx={{ bgcolor: 'rgba(79, 70, 229, 0.2)' }}>{index + 1}</StyledAvatar>
+                          <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+                            Q{index + 1}: {question}
+                          </Typography>
+                          
+                          <Box sx={{ mb: 2, p: 2, bgcolor: 'rgba(17, 24, 39, 0.5)', borderRadius: 2, border: '1px solid rgba(75, 85, 99, 0.5)' }}>
+                            <Typography variant="body2" sx={{ color: 'grey.400', mb: 1 }}>Your Answer:</Typography>
+                            <Typography sx={{ color: 'grey.300' }}>{answers[index] || "No answer provided"}</Typography>
+                          </Box>
+                          
+                          {evaluations[index] && (
                             <Box>
-                              <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>Q: {question}</Typography>
-                              <Box sx={{ bgcolor: 'rgba(17, 24, 39, 0.4)', borderRadius: 2, p: 2, border: '1px solid rgba(107, 114, 128, 0.5)' }}>
-                                <Typography sx={{ fontStyle: 'italic', color: 'grey.300' }}>
-                                  You Replied: {answers[index] || "No answer provided"}
-                                </Typography>
+                              <Divider sx={{ my: 2, borderColor: 'rgba(107, 114, 128, 0.3)' }} />
+                              
+                              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography variant="body2" sx={{ color: 'grey.400', mb: 1 }}>AI Feedback:</Typography>
+                                  <Typography sx={{ color: 'grey.300' }}>{evaluations[index].response}</Typography>
+                                </Box>
+                                
+                                <Box sx={{ 
+                                  px: 3, 
+                                  py: 1, 
+                                  borderRadius: 2,
+                                  bgcolor: 'rgba(79, 70, 229, 0.1)',
+                                  border: '1px solid rgba(79, 70, 229, 0.3)',
+                                  minWidth: 100,
+                                  textAlign: 'center'
+                                }}>
+                                  <Typography variant="h6" sx={{ color: 'primary.light' }}>
+                                    {evaluations[index].accuracy}%
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: 'grey.400' }}>Score</Typography>
+                                </Box>
                               </Box>
                             </Box>
-                          </Box>
+                          )}
                         </Box>
-                        
-                        {evaluations[index] && (
-                          <Box sx={{ bgcolor: 'rgba(17, 24, 39, 0.7)', p: 3, borderTop: '1px solid rgba(107, 114, 128, 0.5)' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                              <Avatar sx={{ bgcolor: 'rgba(139, 92, 246, 0.2)', border: '1px solid rgba(139, 92, 246, 0.3)', color: '#c4b5fd' }}>
-                                {evaluations[index].accuracy}%
-                              </Avatar>
-                              <Typography sx={{ color: 'grey.300' }}>{evaluations[index].response}</Typography>
-                            </Box>
-                          </Box>
-                        )}
                       </Paper>
                     ))}
                   </Box>

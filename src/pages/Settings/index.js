@@ -1,485 +1,268 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
   Typography,
-  Switch,
   Card,
   CardContent,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Divider,
-  FormControl,
-  Select,
-  MenuItem,
-  Slider,
-  Tabs,
-  Tab,
   Button,
-  IconButton,
-  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  TextField,
+  alpha,
   useTheme,
-  alpha
+  Divider,
+  Alert,
+  Snackbar,
+  Paper,
+  FormControlLabel,
+  Switch,
+  Slider
 } from '@mui/material';
 import {
-  DarkMode as DarkModeIcon,
-  LightMode as LightModeIcon,
-  Palette as PaletteIcon,
-  Notifications as NotificationsIcon,
-  Language as LanguageIcon,
-  Cookie as CookieIcon,
-  DataSaverOn as DataSaverOnIcon,
-  Fingerprint as FingerprintIcon,
-  Animation as AnimationIcon,
-  FontDownload as FontDownloadIcon,
-  Public as PublicIcon,
+  AccountCircle as AccountCircleIcon,
   Security as SecurityIcon,
-  Info as InfoIcon,
-  Restore as RestoreIcon
+  Delete as DeleteIcon,
+  LockReset as LockResetIcon,
+  CleaningServices as CleaningServicesIcon,
+  Flare as FlareIcon  // Added icon for cursor effects
 } from '@mui/icons-material';
-import { ThemeContext } from '../../context/ThemeContext';
+import { 
+  getAuth, 
+  deleteUser, 
+  EmailAuthProvider, 
+  reauthenticateWithCredential,
+  updatePassword,
+  sendPasswordResetEmail
+} from 'firebase/auth';
+import { getDatabase, ref, remove, update } from 'firebase/database';
+import { useParticle } from '../../contexts/ParticleContext';
+import { useErrorBoundary } from '../../hooks/useErrorBoundary';
 
-// Beautiful color palettes
-const colorPalettes = {
-  blue: {
-    primary: '#3a86ff',
-    secondary: '#8338ec',
-    name: 'Ocean Blue'
-  },
-  green: {
-    primary: '#38b000',
-    secondary: '#1a759f',
-    name: 'Forest Green'
-  },
-  pink: {
-    primary: '#ff006e',
-    secondary: '#8338ec',
-    name: 'Vibrant Pink'
-  },
-  amber: {
-    primary: '#fb8500',
-    secondary: '#023e8a',
-    name: 'Amber Gold'
-  },
-  turquoise: {
-    primary: '#06d6a0',
-    secondary: '#073b4c',
-    name: 'Turquoise'
-  }
+// Simple color palette since we're only keeping the account page
+const colorPalette = {
+  primary: '#3a86ff',
+  secondary: '#8338ec',
+  name: 'Ocean Blue',
+  error: '#dc3545',
+  errorLight: '#ff4d4d',
+  warning: '#ff9800',
+  success: '#4caf50'
 };
 
-const SettingsApp = () => {
+const AccountSettingsApp = () => {
+  useErrorBoundary();
   const theme = useTheme();
-  const { currentTheme, setTheme } = useContext(ThemeContext);
-  const [tabValue, setTabValue] = useState(0);
-  const [settingsChanged, setSettingsChanged] = useState(false);
+  const navigate = useNavigate();
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  const { particleSettings, updateSettings, resetSettings } = useParticle();
   
-  const [settings, setSettings] = useState({
-    // Appearance settings
-    theme: currentTheme || 'dark',
-    colorPalette: 'blue',
-    animations: true,
-    fontSize: 16,
-    
-    // Content settings
-    language: 'english',
-    region: 'us',
-    contentDensity: 'balanced',
-    
-    // Privacy settings
-    cookieConsent: {
-      necessary: true,
-      preferences: true,
-      statistics: true,
-      marketing: false
-    },
-    dataCollection: 'minimal',
-    biometricLogin: false,
-    
-    // Notifications settings
-    notifications: {
-      email: true,
-      push: true,
-      newsletter: false,
-      productUpdates: true
-    },
-    
-    // Performance settings
-    dataSaver: false,
-    prefetch: true,
-    imageQuality: 'high'
+  // State for delete account dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [deleteError, setDeleteError] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // State for clear data dialog
+  const [clearDataDialogOpen, setClearDataDialogOpen] = useState(false);
+  const [clearDataPassword, setClearDataPassword] = useState('');
+  const [clearDataError, setClearDataError] = useState(null);
+  const [clearDataLoading, setClearDataLoading] = useState(false);
+
+  // State for reset password
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [resetPasswordError, setResetPasswordError] = useState(null);
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  
+  // State for notifications
+  const [notification, setNotification] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
   });
 
-  const handleChange = (setting, value) => {
-    if (typeof setting === 'string' && setting.includes('.')) {
-      // Handle nested settings (e.g., notifications.email)
-      const [parent, child] = setting.split('.');
-      setSettings(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent],
-          [child]: value
+  // Handle account deletion
+  const handleDeleteAccount = async () => {
+    if (!password) {
+      setDeleteError('Please enter your password');
+      return;
+    }
+    
+    setDeleteLoading(true);
+    setDeleteError(null);
+    
+    try {
+      // Re-authenticate user
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        password
+      );
+      
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      // Delete user data from database
+      const db = getDatabase();
+      const userDataRef = ref(db, `users/${currentUser.uid}`);
+      await remove(userDataRef);
+      
+      // Delete the user account
+      await deleteUser(currentUser);
+      
+      // Redirect to landing page
+      navigate('/');
+    } catch (error) {
+      setDeleteLoading(false);
+      setDeleteError(error.message || 'Failed to delete account. Please try again.');
+    }
+  };
+
+  // Handle clear user data
+  const handleClearData = async () => {
+    if (!clearDataPassword) {
+      setClearDataError('Please enter your password');
+      return;
+    }
+    
+    setClearDataLoading(true);
+    setClearDataError(null);
+    
+    try {
+      // Re-authenticate user
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        clearDataPassword
+      );
+      
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      // Clear user data from database but keep account
+      const db = getDatabase();
+      const userDataRef = ref(db, `users/${currentUser.uid}`);
+      
+      // Reset all data paths
+      const updates = {
+        'mcq-challenges': null,
+        'word-power': null,
+        'grammar-check': null,
+        'fasttractanalysis': null,
+        'tongue-twister': null,
+        'debate': null,
+        'story': null,
+        'history/data': null,
+        'preferences': null,
+        'savedItems': null,
+        'profile/stats': {
+          totalSessions: 0,
+          totalTime: 0,
+          averageScore: 0,
+          completedChallenges: 0,
+          lastActive: new Date().toISOString()
         }
-      }));
-    } else {
-      setSettings(prev => ({ ...prev, [setting]: value }));
-    }
-    
-    // Apply theme change immediately
-    if (setting === 'theme') {
-      setTheme(value);
-    }
-    
-    setSettingsChanged(true);
-  };
-
-  const handleTabChange = (_, newValue) => {
-    setTabValue(newValue);
-  };
-
-  const handleSaveSettings = () => {
-    // Here you would typically save settings to your backend or localStorage
-    console.log('Saving settings:', settings);
-    // For demo purposes, show a success message or notification
-    alert('Settings saved successfully!');
-    setSettingsChanged(false);
-  };
-
-  const handleResetSettings = () => {
-    if (window.confirm('Are you sure you want to reset all settings to default?')) {
-      // Define your default settings here
-      const defaultSettings = {
-        theme: 'system',
-        colorPalette: 'blue',
-        animations: true,
-        fontSize: 16,
-        language: 'english',
-        region: 'us',
-        contentDensity: 'balanced',
-        cookieConsent: {
-          necessary: true,
-          preferences: true,
-          statistics: false,
-          marketing: false
-        },
-        dataCollection: 'minimal',
-        biometricLogin: false,
-        notifications: {
-          email: true,
-          push: false,
-          newsletter: false,
-          productUpdates: true
-        },
-        dataSaver: false,
-        prefetch: true,
-        imageQuality: 'medium'
       };
       
-      setSettings(defaultSettings);
-      setTheme(defaultSettings.theme);
-      setSettingsChanged(true);
+      // Update database
+      await update(userDataRef, updates);
+      
+      // Close dialog and show success message
+      setClearDataDialogOpen(false);
+      setClearDataPassword('');
+      setNotification({
+        open: true,
+        message: 'Your data has been successfully cleared',
+        severity: 'success'
+      });
+      
+      setClearDataLoading(false);
+    } catch (error) {
+      setClearDataLoading(false);
+      setClearDataError(error.message || 'Failed to clear data. Please try again.');
     }
   };
 
-  const renderSwitch = (name, checked, label) => (
-    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-      <Typography variant="body2">{label}</Typography>
-      <Switch
-        checked={checked}
-        onChange={(e) => handleChange(name, e.target.checked)}
-        color="primary"
-        size="small"
-      />
-    </Box>
-  );
-
-  // Create a visually appealing gradient background based on current theme and color palette
-  const gradientBackground = theme.palette.mode === 'dark'
-    ? `linear-gradient(145deg, ${alpha(colorPalettes[settings.colorPalette].primary, 0.2)} 0%, ${alpha(colorPalettes[settings.colorPalette].secondary, 0.2)} 100%)`
-    : `linear-gradient(145deg, ${alpha(colorPalettes[settings.colorPalette].primary, 0.1)} 0%, ${alpha(colorPalettes[settings.colorPalette].secondary, 0.1)} 100%)`;
-
-  const tabs = [
-    {
-      label: 'Appearance',
-      icon: <PaletteIcon fontSize="small" />,
-      content: (
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-            Visual Preferences
-          </Typography>
-
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Theme Mode</Typography>
-            <Box sx={{ 
-              display: 'flex', 
-              gap: 2,
-              mb: 2
-            }}>
-              {['light', 'dark', 'system'].map((themeOption) => (
-                <Card 
-                  key={themeOption}
-                  onClick={() => handleChange('theme', themeOption)}
-                  sx={{
-                    width: '33%',
-                    p: 1.5,
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    border: settings.theme === themeOption ? `2px solid ${theme.palette.primary.main}` : '2px solid transparent',
-                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.8)',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      transform: 'translateY(-4px)',
-                      boxShadow: 3
-                    }
-                  }}
-                >
-                  <Box sx={{ mb: 1 }}>
-                    {themeOption === 'light' && <LightModeIcon />}
-                    {themeOption === 'dark' && <DarkModeIcon />}
-                    {themeOption === 'system' && <DeviceThermostatIcon />}
-                  </Box>
-                  <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                    {themeOption}
-                  </Typography>
-                </Card>
-              ))}
-            </Box>
-          </Box>
-
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Color Palette</Typography>
-            <Box sx={{ 
-              display: 'flex', 
-              flexWrap: 'wrap',
-              gap: 1,
-              mb: 2
-            }}>
-              {Object.entries(colorPalettes).map(([key, palette]) => (
-                <Tooltip key={key} title={palette.name}>
-                  <Box
-                    onClick={() => handleChange('colorPalette', key)}
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      cursor: 'pointer',
-                      background: `linear-gradient(135deg, ${palette.primary} 0%, ${palette.secondary} 100%)`,
-                      border: settings.colorPalette === key ? `2px solid ${theme.palette.common.white}` : '2px solid transparent',
-                      outline: settings.colorPalette === key ? `2px solid ${palette.primary}` : 'none',
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        transform: 'scale(1.1)'
-                      }
-                    }}
-                  />
-                </Tooltip>
-              ))}
-            </Box>
-          </Box>
-
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Font Size</Typography>
-            <Slider
-              value={settings.fontSize}
-              min={12}
-              max={20}
-              step={1}
-              marks={[
-                { value: 12, label: 'Small' },
-                { value: 16, label: 'Medium' },
-                { value: 20, label: 'Large' }
-              ]}
-              onChange={(_, value) => handleChange('fontSize', value)}
-              valueLabelDisplay="auto"
-              valueLabelFormat={(value) => `${value}px`}
-            />
-          </Box>
-
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Content Density</Typography>
-            <FormControl fullWidth size="small">
-              <Select
-                value={settings.contentDensity}
-                onChange={(e) => handleChange('contentDensity', e.target.value)}
-                sx={{ bgcolor: 'background.paper' }}
-              >
-                <MenuItem value="compact">Compact - Show more content</MenuItem>
-                <MenuItem value="balanced">Balanced</MenuItem>
-                <MenuItem value="comfortable">Comfortable - More spacious</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-
-          <Box sx={{ mb: 1 }}>
-            {renderSwitch('animations', settings.animations, 'Enable animations and transitions')}
-          </Box>
-        </Box>
-      )
-    },
-    {
-      label: 'Content',
-      icon: <LanguageIcon fontSize="small" />,
-      content: (
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-            Content Settings
-          </Typography>
-
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Language</Typography>
-            <FormControl fullWidth size="small">
-              <Select
-                value={settings.language}
-                onChange={(e) => handleChange('language', e.target.value)}
-                sx={{ bgcolor: 'background.paper' }}
-              >
-                <MenuItem value="english">English</MenuItem>
-                <MenuItem value="spanish">Español</MenuItem>
-                <MenuItem value="french">Français</MenuItem>
-                <MenuItem value="german">Deutsch</MenuItem>
-                <MenuItem value="chinese">中文</MenuItem>
-                <MenuItem value="japanese">日本語</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Content Region</Typography>
-            <FormControl fullWidth size="small">
-              <Select
-                value={settings.region}
-                onChange={(e) => handleChange('region', e.target.value)}
-                sx={{ bgcolor: 'background.paper' }}
-              >
-                <MenuItem value="us">United States</MenuItem>
-                <MenuItem value="eu">Europe</MenuItem>
-                <MenuItem value="asia">Asia</MenuItem>
-                <MenuItem value="global">Global - All Regions</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Font Family</Typography>
-            <FormControl fullWidth size="small">
-              <Select
-                value={settings.fontFamily || 'system'}
-                onChange={(e) => handleChange('fontFamily', e.target.value)}
-                sx={{ bgcolor: 'background.paper' }}
-              >
-                <MenuItem value="system">System Default</MenuItem>
-                <MenuItem value="roboto">Roboto</MenuItem>
-                <MenuItem value="openSans">Open Sans</MenuItem>
-                <MenuItem value="montserrat">Montserrat</MenuItem>
-                <MenuItem value="merriweather">Merriweather</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
-      )
-    },
-    {
-      label: 'Privacy',
-      icon: <SecurityIcon fontSize="small" />,
-      content: (
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-            Privacy & Security
-          </Typography>
-
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Cookie Preferences</Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {renderSwitch('cookieConsent.necessary', settings.cookieConsent.necessary, 'Necessary Cookies (Required)')}
-              {renderSwitch('cookieConsent.preferences', settings.cookieConsent.preferences, 'Preference Cookies')}
-              {renderSwitch('cookieConsent.statistics', settings.cookieConsent.statistics, 'Analytics & Statistics')}
-              {renderSwitch('cookieConsent.marketing', settings.cookieConsent.marketing, 'Marketing & Advertising')}
-            </Box>
-          </Box>
-
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Data Collection</Typography>
-            <FormControl fullWidth size="small">
-              <Select
-                value={settings.dataCollection}
-                onChange={(e) => handleChange('dataCollection', e.target.value)}
-                sx={{ bgcolor: 'background.paper' }}
-              >
-                <MenuItem value="minimal">Minimal - Essential data only</MenuItem>
-                <MenuItem value="balanced">Balanced - Improve user experience</MenuItem>
-                <MenuItem value="full">Full - Personalized experience</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-
-          <Box sx={{ mb: 1 }}>
-            {renderSwitch('biometricLogin', settings.biometricLogin, 'Enable biometric authentication (if available)')}
-          </Box>
-        </Box>
-      )
-    },
-    {
-      label: 'Notifications',
-      icon: <NotificationsIcon fontSize="small" />,
-      content: (
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-            Notification Preferences
-          </Typography>
-
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {renderSwitch('notifications.push', settings.notifications.push, 'Push Notifications')}
-            {renderSwitch('notifications.email', settings.notifications.email, 'Email Notifications')}
-            {renderSwitch('notifications.productUpdates', settings.notifications.productUpdates, 'Product Updates & Announcements')}
-            {renderSwitch('notifications.newsletter', settings.notifications.newsletter, 'Newsletter Subscription')}
-          </Box>
-        </Box>
-      )
-    },
-    {
-      label: 'Performance',
-      icon: <DataSaverOnIcon fontSize="small" />,
-      content: (
-        <Box sx={{ p: 2 }}>
-          <Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-            Performance Settings
-          </Typography>
-
-          <Box sx={{ mb: 3 }}>
-            {renderSwitch('dataSaver', settings.dataSaver, 'Data Saver Mode')}
-            <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-              Reduces data usage by loading lower resolution images and optimizing content
-            </Typography>
-          </Box>
-
-          <Box sx={{ mb: 3 }}>
-            {renderSwitch('prefetch', settings.prefetch, 'Enable link prefetching')}
-            <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-              Preloads linked pages for faster navigation
-            </Typography>
-          </Box>
-
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Image Quality</Typography>
-            <FormControl fullWidth size="small">
-              <Select
-                value={settings.imageQuality}
-                onChange={(e) => handleChange('imageQuality', e.target.value)}
-                sx={{ bgcolor: 'background.paper' }}
-              >
-                <MenuItem value="low">Low - Fastest loading</MenuItem>
-                <MenuItem value="medium">Medium - Balanced</MenuItem>
-                <MenuItem value="high">High - Best quality</MenuItem>
-                <MenuItem value="auto">Auto - Based on connection</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
-      )
+  // Handle reset password
+  const handleResetPassword = async () => {
+    // Validate passwords
+    if (!currentPassword) {
+      setResetPasswordError('Please enter your current password');
+      return;
     }
-  ];
+    
+    if (!newPassword) {
+      setResetPasswordError('Please enter a new password');
+      return;
+    }
+    
+    if (newPassword !== confirmNewPassword) {
+      setResetPasswordError('New passwords do not match');
+      return;
+    }
+    
+    if (newPassword.length < 8) {
+      setResetPasswordError('New password must be at least 8 characters long');
+      return;
+    }
+    
+    setResetPasswordLoading(true);
+    setResetPasswordError(null);
+    
+    try {
+      // Re-authenticate user
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        currentPassword
+      );
+      
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      // Update password
+      await updatePassword(currentUser, newPassword);
+      
+      // Close dialog and show success message
+      setResetPasswordDialogOpen(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setNotification({
+        open: true,
+        message: 'Your password has been successfully updated',
+        severity: 'success'
+      });
+    } catch (error) {
+      setResetPasswordLoading(false);
+      setResetPasswordError(error.message || 'Failed to update password. Please try again.');
+    }
+  };
+
+  // Handle forgot password
+  const handleForgotPassword = async () => {
+    try {
+      await sendPasswordResetEmail(auth, currentUser.email);
+      setNotification({
+        open: true,
+        message: 'Password reset email sent. Check your inbox.',
+        severity: 'info'
+      });
+    } catch (error) {
+      setNotification({
+        open: true,
+        message: error.message || 'Failed to send reset email. Please try again.',
+        severity: 'error'
+      });
+    }
+  };
+
+  // Create a visually appealing gradient background based on current theme
+  const gradientBackground = theme.palette.mode === 'dark'
+    ? `linear-gradient(145deg, ${alpha(colorPalette.primary, 0.2)} 0%, ${alpha(colorPalette.secondary, 0.2)} 100%)`
+    : `linear-gradient(145deg, ${alpha(colorPalette.primary, 0.1)} 0%, ${alpha(colorPalette.secondary, 0.1)} 100%)`;
 
   return (
     <Box sx={{
@@ -488,8 +271,8 @@ const SettingsApp = () => {
       color: 'text.primary',
       transition: 'all 0.3s ease',
       background: theme.palette.mode === 'dark' 
-        ? `${theme.palette.background.default} radial-gradient(circle at top right, ${alpha(colorPalettes[settings.colorPalette].primary, 0.15)}, transparent 60%)`
-        : `${theme.palette.background.default} radial-gradient(circle at top right, ${alpha(colorPalettes[settings.colorPalette].primary, 0.07)}, transparent 60%)`
+        ? `${theme.palette.background.default} radial-gradient(circle at top right, ${alpha(colorPalette.primary, 0.15)}, transparent 60%)`
+        : `${theme.palette.background.default} radial-gradient(circle at top right, ${alpha(colorPalette.primary, 0.07)}, transparent 60%)`
     }}>
       <Container maxWidth="md" sx={{ py: 6 }}>
         <Box sx={{ 
@@ -502,22 +285,397 @@ const SettingsApp = () => {
             variant="h4"
             sx={{
               fontWeight: 700,
-              backgroundImage: `linear-gradient(135deg, ${colorPalettes[settings.colorPalette].primary} 0%, ${colorPalettes[settings.colorPalette].secondary} 100%)`,
+              backgroundImage: `linear-gradient(135deg, ${colorPalette.primary} 0%, ${colorPalette.secondary} 100%)`,
               backgroundClip: 'text',
               textFillColor: 'transparent',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
             }}
           >
-            Settings
+            Account Settings
           </Typography>
           
-          <Tooltip title="Reset to defaults">
-            <IconButton onClick={handleResetSettings} color="primary">
-              <RestoreIcon />
-            </IconButton>
-          </Tooltip>
+          <AccountCircleIcon 
+            fontSize="large" 
+            sx={{ 
+              color: colorPalette.primary,
+              backgroundColor: alpha(colorPalette.primary, 0.1),
+              borderRadius: '50%',
+              padding: 1,
+              boxSizing: 'content-box'
+            }} 
+          />
         </Box>
+
+        {/* Cursor Effects Card - Styled to match other cards */}
+        <Card
+          elevation={theme.palette.mode === 'dark' ? 2 : 1}
+          sx={{
+            borderRadius: 3,
+            overflow: 'hidden',
+            backgroundImage: gradientBackground,
+            backdropFilter: 'blur(10px)',
+            border: `1px solid ${
+              theme.palette.mode === 'dark' 
+                ? 'rgba(255, 255, 255, 0.05)' 
+                : 'rgba(0, 0, 0, 0.05)'
+            }`,
+            mb: 3
+          }}
+        >
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+              <FlareIcon sx={{ mr: 1, color: colorPalette.secondary }} />
+              <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                Cursor Effects
+              </Typography>
+            </Box>
+            
+            <Box sx={{ 
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.7)',
+              p: 3,
+              borderRadius: 2,
+              mb: 3
+            }}>
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                mb: 3 
+              }}>
+                <Typography variant="body1">
+                  Customize the particle effects that follow your cursor and appear when clicking.
+                </Typography>
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  onClick={() => {
+                    resetSettings();
+                    setNotification({
+                      open: true,
+                      message: 'Particle settings have been reset to default',
+                      severity: 'success'
+                    });
+                  }}
+                  size="small"
+                  sx={{ 
+                    borderRadius: 2,
+                    ml: 2
+                  }}
+                >
+                  Reset to Default
+                </Button>
+              </Box>
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={particleSettings.enabled}
+                    onChange={(e) => updateSettings({ enabled: e.target.checked })}
+                    sx={{
+                      '& .MuiSwitch-switchBase.Mui-checked': {
+                        color: colorPalette.secondary,
+                        '&:hover': {
+                          backgroundColor: alpha(colorPalette.secondary, 0.1),
+                        },
+                      },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                        backgroundColor: colorPalette.secondary,
+                      },
+                    }}
+                  />
+                }
+                label={
+                  <Typography variant="body1" fontWeight={500}>
+                    Enable Particle Effects
+                  </Typography>
+                }
+              />
+              
+              {particleSettings.enabled && (
+                <Box sx={{ mt: 3 }}>
+                  <Divider sx={{ mb: 3 }} />
+                  
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={particleSettings.trailEnabled}
+                          onChange={(e) => updateSettings({ trailEnabled: e.target.checked })}
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: colorPalette.secondary,
+                              '&:hover': {
+                                backgroundColor: alpha(colorPalette.secondary, 0.1),
+                              },
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              backgroundColor: colorPalette.secondary,
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography variant="body2">
+                          Mouse Trail Effect
+                        </Typography>
+                      }
+                    />
+                    
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={particleSettings.clickEnabled}
+                          onChange={(e) => updateSettings({ clickEnabled: e.target.checked })}
+                          sx={{
+                            '& .MuiSwitch-switchBase.Mui-checked': {
+                              color: colorPalette.secondary,
+                              '&:hover': {
+                                backgroundColor: alpha(colorPalette.secondary, 0.1),
+                              },
+                            },
+                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                              backgroundColor: colorPalette.secondary,
+                            },
+                          }}
+                        />
+                      }
+                      label={
+                        <Typography variant="body2">
+                          Click Burst Effect
+                        </Typography>
+                      }
+                    />
+                    
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                        Particle Color
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type="color"
+                          value={particleSettings.particleColor}
+                          onChange={(e) => updateSettings({ particleColor: e.target.value })}
+                          style={{ 
+                            width: '60px', 
+                            height: '40px', 
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer'
+                          }}
+                        />
+                        <Typography variant="body2" sx={{ ml: 2, color: 'text.secondary' }}>
+                          {particleSettings.particleColor}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                        Trail Particle Count
+                      </Typography>
+                      <Slider
+                        value={particleSettings.trailParticleCount}
+                        onChange={(e, value) => updateSettings({ trailParticleCount: value })}
+                        min={1}
+                        max={5}
+                        step={1}
+                        marks
+                        valueLabelDisplay="auto"
+                        sx={{
+                          color: colorPalette.secondary,
+                          '& .MuiSlider-thumb': {
+                            '&:hover, &.Mui-focusVisible': {
+                              boxShadow: `0px 0px 0px 8px ${alpha(colorPalette.secondary, 0.16)}`
+                            },
+                          }
+                        }}
+                      />
+                    </Box>
+                    
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                        Click Burst Particle Count
+                      </Typography>
+                      <Slider
+                        value={particleSettings.clickParticleCount}
+                        onChange={(e, value) => updateSettings({ clickParticleCount: value })}
+                        min={5}
+                        max={20}
+                        step={1}
+                        marks
+                        valueLabelDisplay="auto"
+                        sx={{
+                          color: colorPalette.secondary,
+                          '& .MuiSlider-thumb': {
+                            '&:hover, &.Mui-focusVisible': {
+                              boxShadow: `0px 0px 0px 8px ${alpha(colorPalette.secondary, 0.16)}`
+                            },
+                          }
+                        }}
+                      />
+                    </Box>
+                    
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                        Particle Size
+                      </Typography>
+                      <Slider
+                        value={particleSettings.particleSize}
+                        onChange={(e, value) => updateSettings({ particleSize: value })}
+                        min={1}
+                        max={5}
+                        step={0.5}
+                        marks
+                        valueLabelDisplay="auto"
+                        sx={{
+                          color: colorPalette.secondary,
+                          '& .MuiSlider-thumb': {
+                            '&:hover, &.Mui-focusVisible': {
+                              boxShadow: `0px 0px 0px 8px ${alpha(colorPalette.secondary, 0.16)}`
+                            },
+                          }
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card
+          elevation={theme.palette.mode === 'dark' ? 2 : 1}
+          sx={{
+            borderRadius: 3,
+            overflow: 'hidden',
+            backgroundImage: gradientBackground,
+            backdropFilter: 'blur(10px)',
+            border: `1px solid ${
+              theme.palette.mode === 'dark' 
+                ? 'rgba(255, 255, 255, 0.05)' 
+                : 'rgba(0, 0, 0, 0.05)'
+            }`,
+            mb: 3
+          }}
+        >
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+              <LockResetIcon sx={{ mr: 1, color: colorPalette.primary }} />
+              <Typography variant="h6" sx={{ fontWeight: 500 }}>
+                Password Management
+              </Typography>
+            </Box>
+            
+            <Box sx={{ 
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.7)',
+              p: 3,
+              borderRadius: 2,
+              mb: 3
+            }}>
+              <Typography variant="body1" sx={{ mb: 3 }}>
+                You can change your password or request a password reset if you've forgotten it.
+              </Typography>
+              
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <Button 
+                  variant="contained" 
+                  color="primary"
+                  onClick={() => setResetPasswordDialogOpen(true)}
+                  startIcon={<LockResetIcon />}
+                  sx={{ 
+                    borderRadius: 2,
+                    boxShadow: 2
+                  }}
+                >
+                  Reset Password
+                </Button>
+                
+                <Button 
+                  variant="outlined" 
+                  color="primary"
+                  onClick={handleForgotPassword}
+                  sx={{ 
+                    borderRadius: 2
+                  }}
+                >
+                  Forgot Password?
+                </Button>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card
+          elevation={theme.palette.mode === 'dark' ? 2 : 1}
+          sx={{
+            borderRadius: 3,
+            overflow: 'hidden',
+            backgroundImage: gradientBackground,
+            backdropFilter: 'blur(10px)',
+            border: `1px solid ${
+              theme.palette.mode === 'dark' 
+                ? 'rgba(255, 255, 255, 0.05)' 
+                : 'rgba(0, 0, 0, 0.05)'
+            }`,
+            mb: 3
+          }}
+        >
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+              <CleaningServicesIcon sx={{ mr: 1, color: colorPalette.warning }} />
+              <Typography variant="h6" sx={{ fontWeight: 500, color: colorPalette.warning }}>
+                Data Management
+              </Typography>
+            </Box>
+            
+            <Box sx={{ 
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.7)',
+              p: 3,
+              borderRadius: 2,
+              mb: 3
+            }}>
+              <Typography variant="body1" sx={{ mb: 3 }}>
+                Clear your user data without deleting your account. This will reset all your preferences and history.
+              </Typography>
+              
+              <Box sx={{ 
+                bgcolor: alpha(colorPalette.warning, 0.05),
+                p: 3,
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: alpha(colorPalette.warning, 0.3)
+              }}>
+                <Typography variant="subtitle1" fontWeight={500} sx={{ mb: 2 }}>
+                  Clear All Your Data
+                </Typography>
+                
+                <Typography variant="body2" sx={{ mb: 3 }}>
+                  This will remove all your data from our database while keeping your account active.
+                  Your saved preferences, history, and personal information will be reset.
+                </Typography>
+                
+                <Button 
+                  variant="outlined" 
+                  color="warning"
+                  onClick={() => setClearDataDialogOpen(true)}
+                  startIcon={<CleaningServicesIcon />}
+                  sx={{ 
+                    borderWidth: 2,
+                    '&:hover': {
+                      borderWidth: 2,
+                      bgcolor: 'warning.light',
+                      color: 'warning.contrastText'
+                    }
+                  }}
+                >
+                  Clear My Data
+                </Button>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
 
         <Card
           elevation={theme.palette.mode === 'dark' ? 2 : 1}
@@ -533,95 +691,329 @@ const SettingsApp = () => {
             }`,
           }}
         >
-          <Box sx={{ 
-            borderBottom: 1, 
-            borderColor: 'divider',
-            bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.7)',
-          }}>
-            <Tabs
-              value={tabValue}
-              onChange={handleTabChange}
-              variant="scrollable"
-              scrollButtons="auto"
-              textColor="primary"
-              indicatorColor="primary"
-              sx={{
-                '& .MuiTab-root': {
-                  minHeight: 64,
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                  textTransform: 'none',
-                }
-              }}
-            >
-              {tabs.map((tab, index) => (
-                <Tab 
-                  key={index} 
-                  label={tab.label} 
-                  icon={tab.icon} 
-                  iconPosition="start"
-                />
-              ))}
-            </Tabs>
-          </Box>
-          
-          <CardContent sx={{ p: 0 }}>
-            {tabs[tabValue].content}
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+              <SecurityIcon sx={{ mr: 1, color: colorPalette.error }} />
+              <Typography variant="h6" sx={{ fontWeight: 500, color: colorPalette.error }}>
+                Danger Zone
+              </Typography>
+            </Box>
             
-            <Box sx={{ 
-              p: 2, 
-              borderTop: 1, 
-              borderColor: 'divider',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 2,
-              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.7)',
-            }}>
-              <Button 
-                variant="outlined" 
-                color="inherit"
-                onClick={() => setTabValue((tabValue + 1) % tabs.length)}
-              >
-                Next
-              </Button>
-              <Button 
-                variant="contained" 
-                color="primary"
-                disabled={!settingsChanged}
-                onClick={handleSaveSettings}
-                sx={{
-                  backgroundImage: `linear-gradient(135deg, ${colorPalettes[settings.colorPalette].primary} 0%, ${colorPalettes[settings.colorPalette].secondary} 100%)`,
-                  transition: 'transform 0.2s',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: 4
-                  }
-                }}
-              >
-                Save Changes
-              </Button>
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="body1" sx={{ mb: 3 }}>
+                Your account details:
+              </Typography>
+              
+              <Box sx={{ 
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.7)',
+                p: 2,
+                borderRadius: 2,
+                mb: 3
+              }}>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>Email:</strong> {currentUser?.email || 'Not logged in'}
+                </Typography>
+                {currentUser?.displayName && (
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Name:</strong> {currentUser.displayName}
+                  </Typography>
+                )}
+                <Typography variant="body2">
+                  <strong>Account created:</strong> {currentUser?.metadata?.creationTime 
+                    ? new Date(currentUser.metadata.creationTime).toLocaleDateString() 
+                    : 'Unknown'}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ 
+                bgcolor: alpha(colorPalette.error, 0.05),
+                p: 3,
+                borderRadius: 2,
+                border: '1px solid',
+                borderColor: colorPalette.errorLight
+              }}>
+                <Typography variant="subtitle1" fontWeight={500} sx={{ mb: 2 }}>
+                  Delete Your Account
+                </Typography>
+                
+                <Typography variant="body2" sx={{ mb: 3 }}>
+                  Deleting your account will permanently remove all your data from our servers. This action cannot be undone.
+                  All your personal information, saved preferences, and activity history will be erased.
+                </Typography>
+                
+                <Button 
+                  variant="outlined" 
+                  color="error"
+                  onClick={() => setDeleteDialogOpen(true)}
+                  startIcon={<DeleteIcon />}
+                  sx={{ 
+                    borderWidth: 2,
+                    '&:hover': {
+                      borderWidth: 2,
+                      bgcolor: 'error.light',
+                      color: 'error.contrastText'
+                    }
+                  }}
+                >
+                  Delete Account
+                </Button>
+              </Box>
             </Box>
           </CardContent>
         </Card>
-        
-        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-          <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <InfoIcon fontSize="small" />
-            Your settings are automatically synced across all your devices
-          </Typography>
-        </Box>
       </Container>
+
+      {/* Delete Account Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: 24
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: colorPalette.error, pb: 1 }}>
+          Delete Your Account
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 3 }}>
+            This action is permanent and cannot be undone. All your data will be permanently deleted.
+            Please enter your password to confirm.
+          </DialogContentText>
+          {deleteError && (
+            <Box sx={{ 
+              mb: 3, 
+              p: 2, 
+              bgcolor: alpha(colorPalette.error, 0.1), 
+              borderRadius: 1, 
+              borderLeft: '4px solid', 
+              borderColor: colorPalette.error 
+            }}>
+              <Typography variant="body2" color={colorPalette.error}>
+                {deleteError}
+              </Typography>
+            </Box>
+          )}
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Password"
+            type="password"
+            fullWidth
+            variant="outlined"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={deleteLoading}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '&.Mui-focused fieldset': {
+                  borderColor: colorPalette.error,
+                },
+              },
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button 
+            onClick={() => setDeleteDialogOpen(false)} 
+            disabled={deleteLoading}
+            variant="text"
+            sx={{ mr: 1 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteAccount} 
+            color="error" 
+            variant="contained"
+            disabled={!password || deleteLoading}
+          >
+            {deleteLoading ? 'Deleting...' : 'Delete Account'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Clear Data Dialog */}
+      <Dialog
+        open={clearDataDialogOpen}
+        onClose={() => setClearDataDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: 24
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: colorPalette.warning, pb: 1 }}>
+          Clear Your Data
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 3 }}>
+            This will reset all your preferences and clear your history while keeping your account active.
+            Please enter your password to confirm.
+          </DialogContentText>
+          {clearDataError && (
+            <Box sx={{ 
+              mb: 3, 
+              p: 2, 
+              bgcolor: alpha(colorPalette.warning, 0.1), 
+              borderRadius: 1, 
+              borderLeft: '4px solid', 
+              borderColor: colorPalette.warning 
+            }}>
+              <Typography variant="body2" color={colorPalette.warning}>
+                {clearDataError}
+              </Typography>
+            </Box>
+          )}
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Password"
+            type="password"
+            fullWidth
+            variant="outlined"
+            value={clearDataPassword}
+            onChange={(e) => setClearDataPassword(e.target.value)}
+            disabled={clearDataLoading}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '&.Mui-focused fieldset': {
+                  borderColor: colorPalette.warning,
+                },
+              },
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button 
+            onClick={() => setClearDataDialogOpen(false)} 
+            disabled={clearDataLoading}
+            variant="text"
+            sx={{ mr: 1 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleClearData}
+            color="warning" 
+            variant="contained"
+            disabled={!clearDataPassword || clearDataLoading}
+          >
+            {clearDataLoading ? 'Clearing...' : 'Clear My Data'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog
+        open={resetPasswordDialogOpen}
+        onClose={() => setResetPasswordDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: 24
+          }
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: colorPalette.primary, pb: 1 }}>
+          Reset Your Password
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 3 }}>
+            Please enter your current password and choose a new password.
+          </DialogContentText>
+          {resetPasswordError && (
+            <Box sx={{ 
+              mb: 3, 
+              p: 2, 
+              bgcolor: alpha(colorPalette.error, 0.1), 
+              borderRadius: 1, 
+              borderLeft: '4px solid', 
+              borderColor: colorPalette.error 
+            }}>
+              <Typography variant="body2" color={colorPalette.error}>
+                {resetPasswordError}
+              </Typography>
+            </Box>
+          )}
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Current Password"
+            type="password"
+            fullWidth
+            variant="outlined"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            disabled={resetPasswordLoading}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            margin="dense"
+            label="New Password"
+            type="password"
+            fullWidth
+            variant="outlined"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            disabled={resetPasswordLoading}
+            sx={{ mb: 2 }}
+            helperText="Password must be at least 8 characters long"
+          />
+          <TextField
+            margin="dense"
+            label="Confirm New Password"
+            type="password"
+            fullWidth
+            variant="outlined"
+            value={confirmNewPassword}
+            onChange={(e) => setConfirmNewPassword(e.target.value)}
+            disabled={resetPasswordLoading}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button 
+            onClick={() => setResetPasswordDialogOpen(false)} 
+            disabled={resetPasswordLoading}
+            variant="text"
+            sx={{ mr: 1 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleResetPassword} 
+            color="primary" 
+            variant="contained"
+            disabled={!currentPassword || !newPassword || !confirmNewPassword || resetPasswordLoading}
+          >
+            {resetPasswordLoading ? 'Updating...' : 'Update Password'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Notification Snackbar */}
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={6000}
+        onClose={() => setNotification({ ...notification, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setNotification({ ...notification, open: false })} 
+          severity={notification.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
 
-// This component would typically be imported but we're including it here
-const DeviceThermostatIcon = () => {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M15 13V5C15 3.34 13.66 2 12 2C10.34 2 9 3.34 9 5V13C7.79 13.91 7 15.37 7 17C7 19.76 9.24 22 12 22C14.76 22 17 19.76 17 17C17 15.37 16.21 13.91 15 13ZM12 4C12.55 4 13 4.45 13 5V8H11V5C11 4.45 11.45 4 12 4Z" fill="currentColor"/>
-    </svg>
-  );
-};
-
-export default SettingsApp;
+export default AccountSettingsApp;

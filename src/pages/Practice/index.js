@@ -1,252 +1,197 @@
-import React from 'react';
-import { Box, Typography, Grid, Container, useTheme, Paper, Button } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 
+import React from 'react';
+import { 
+  Box, 
+  Typography, 
+  Container, 
+  Grid, 
+  Paper, 
+  Button, 
+  Tabs,
+  Tab,
+  Chip,
+  alpha
+} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useErrorBoundary } from '../../hooks/useErrorBoundary';
 // Icons
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MicIcon from '@mui/icons-material/Mic';
 import EditIcon from '@mui/icons-material/Edit';
 import DuoIcon from '@mui/icons-material/Duo';
 import SpellcheckIcon from '@mui/icons-material/Spellcheck';
-import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import GroupsIcon from '@mui/icons-material/Groups';
+import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 import PresentToAllIcon from '@mui/icons-material/PresentToAll';
+import TranslateIcon from '@mui/icons-material/Translate';
 import AutoStoriesIcon from '@mui/icons-material/AutoStories';
-import ChatIcon from '@mui/icons-material/Chat';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import HeadsetMicIcon from '@mui/icons-material/HeadsetMic';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import SchoolIcon from '@mui/icons-material/School';
 
-// Styled components
-// Styled components
-const PageWrapper = styled(Box)(({ theme }) => ({
-  minHeight: '100vh',
-  background: 'linear-gradient(120deg, #0A1929 0%, #142F4C 100%)',
-  position: 'relative',
-  overflow: 'hidden',
-  paddingTop: theme.spacing(6),
-  paddingBottom: theme.spacing(8),
-  paddingRight: theme.spacing(6),
-  '&::after': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: 'radial-gradient(circle at 30% 20%, rgba(99, 102, 241, 0.15) 0%, rgba(59, 130, 246, 0.05) 40%, transparent 70%)',
-    pointerEvents: 'none',
-  }
-}));
-
-const HeadingGradient = styled(Typography)(({ theme }) => ({
-  fontWeight: 800,
-  textAlign: 'center',
-  background: 'linear-gradient(90deg, #7C3AED 0%, #4F46E5 50%, #3B82F6 100%)',
-  WebkitBackgroundClip: 'text',
-  WebkitTextFillColor: 'transparent',
-  marginBottom: theme.spacing(2),
-  position: 'relative',
-  '&::after': {
-    content: '""',
-    position: 'absolute',
-    bottom: -10,
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: 80,
-    height: 4,
-    borderRadius: 2,
-    background: 'linear-gradient(90deg, #7C3AED, #3B82F6)',
-  }
-}));
-
-const SectionWrapper = styled(Box)(({ theme }) => ({
-  marginBottom: theme.spacing(6),
-  position: 'relative',
-}));
-
-const SectionHeading = styled(Typography)(({ theme, color }) => ({
-  marginBottom: theme.spacing(3),
-  fontWeight: 700,
-  position: 'relative',
-  paddingLeft: theme.spacing(2),
-  display: 'inline-block',
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    left: 0,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    width: 4,
-    height: '80%',
-    background: color,
-    borderRadius: 4,
-  }
-}));
-
-// Elegant smaller card design
-const ElegantCard = styled(motion(Paper))(({ theme, gradient, borderColor }) => ({
-  position: 'relative',
-  height: 130,
-  background: 'rgba(13, 26, 38, 0.6)',
-  backdropFilter: 'blur(12px)',
-  borderRadius: 12,
-  overflow: 'hidden',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  transition: 'all 0.3s ease',
-  border: `1px solid ${borderColor}`,
-  '&:hover': {
-    transform: 'translateY(-4px)',
-    boxShadow: `0 6px 16px rgba(${borderColor.replace(/[^\d,]/g, '')}, 0.25)`,
-    '& .card-icon': {
-      transform: 'scale(1.05) translateY(-2px)',
-    },
-    '& .card-glow': {
-      opacity: 0.15,
-    }
-  }
-}));
-
-const CardGlow = styled(Box)(({ gradient }) => ({
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  right: 0,
-  height: '100%',
-  background: gradient,
-  opacity: 0.05,
-  transition: 'opacity 0.3s ease',
-  zIndex: 0,
-}));
-
-const CardIconWrapper = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: theme.spacing(1.5),
-  position: 'relative',
-  zIndex: 1,
-  transition: 'all 0.3s ease',
-}));
-
-const CardContent = styled(Box)(({ theme }) => ({
-  padding: theme.spacing(2),
-  position: 'relative',
-  zIndex: 1,
-  flex: 1,
-}));
-
-const Subtitle = styled(Typography)(({ theme }) => ({
-  color: 'rgba(219, 234, 254, 0.7)',
-  textAlign: 'center',
-  maxWidth: '700px',
-  margin: '0 auto',
-  marginBottom: theme.spacing(6),
-}));
-
-// Special AI Mentor card
-const MentorCard = styled(motion(Paper))(({ theme }) => ({
-  background: 'linear-gradient(135deg, rgba(13, 26, 38, 0.95) 0%, rgba(18, 36, 53, 0.95) 100%)',
-  backdropFilter: 'blur(15px)',
-  borderRadius: 16,
-  overflow: 'hidden',
-  padding: theme.spacing(3),
-  position: 'relative',
-  border: '1px solid rgba(124, 58, 237, 0.2)',
-  marginBottom: theme.spacing(6),
-  '&::before': {
-    content: '""',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    background: 'radial-gradient(circle at 30% 40%, rgba(124, 58, 237, 0.08) 0%, rgba(59, 130, 246, 0.05) 50%, transparent 70%)',
-    zIndex: 0,
-  }
-}));
-
-const MentorIconBg = styled(Box)(({ theme }) => ({
-  width: 70,
-  height: 70,
-  borderRadius: '20px',
-  background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginRight: theme.spacing(3),
-  position: 'relative',
-  boxShadow: '0 8px 16px rgba(124, 58, 237, 0.2)',
-  '&::after': {
-    content: '""',
-    position: 'absolute',
-    inset: '-3px',
-    borderRadius: '23px',
-    background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.6) 0%, rgba(59, 130, 246, 0.4) 100%)',
-    zIndex: -1,
-    opacity: 0.3,
-  }
-}));
-
-const AccessButton = styled(Button)(({ theme }) => ({
-  background: 'linear-gradient(90deg, #7C3AED, #3B82F6)',
-  color: 'white',
-  borderRadius: 8,
-  padding: theme.spacing(1, 3),
-  textTransform: 'none',
-  fontWeight: 600,
-  '&:hover': {
-    background: 'linear-gradient(90deg, #6D28D9, #2563EB)',
-    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
-  }
-}));
-
-// Main component
 const Practice = () => {
-  const theme = useTheme();
+  useErrorBoundary();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = React.useState(0);
 
-  const sections = [
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
+  const practiceSections = [
     {
       id: 'textual',
       title: 'Textual Learning',
+      description: 'Enhance your language skills through interactive text-based exercises',
       gradient: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
       color: '#7C3AED',
       borderColor: 'rgba(124, 58, 237, 0.3)',
-      description: 'Enhance your language skills through interactive text-based exercises',
       items: [
-        { id: 'mcq', title: 'MCQ Challenge', subtitle: 'Test your knowledge', icon: <EditIcon />, path: '/chatbox' },
-        { id: 'vocabulary', title: 'Word Power', subtitle: 'Expand your vocabulary', icon: <MenuBookIcon />, path: '/WordPower' },
-        { id: 'grammar', title: 'Grammar Check', subtitle: 'Perfect your writing', icon: <SpellcheckIcon />, path: '/Grammarcheck' },
+        { 
+          id: 'mcq', 
+          title: 'MCQ Challenge', 
+          subtitle: 'Test your knowledge', 
+          icon: <EditIcon />, 
+          path: '/chatbox',
+          chips: ['Interactive', 'Scoring']
+        },
+        { 
+          id: 'vocabulary', 
+          title: 'Word Power', 
+          subtitle: 'Expand your vocabulary', 
+          icon: <MenuBookIcon />, 
+          path: '/WordPower',
+          chips: ['Vocabulary', 'Games'] 
+        },
+        { 
+          id: 'grammar', 
+          title: 'Grammar Check', 
+          subtitle: 'Perfect your writing', 
+          icon: <SpellcheckIcon />, 
+          path: '/Grammarcheck',
+          chips: ['Analysis', 'Correction'] 
+        },
+        { 
+          id: 'tongueTwister', 
+          title: 'Tongue Twister Challenge', 
+          subtitle: 'Perfect your pronunciation', 
+          icon: <RecordVoiceOverIcon />, 
+          path: '/tonguetwister',
+          chips: ['Similar words', 'Quiz']
+        },
+        // Add the new WordContext item
+        { 
+          id: 'wordContext', 
+          title: 'Word in Context', 
+          subtitle: 'Master word usage', 
+          icon: <SchoolIcon />, 
+          path: '/wordcontext',
+          chips: ['Interactive', 'Vocabulary'] 
+        },
+        { 
+          id: 'grammarFill', 
+          title: 'Grammar Fill', 
+          subtitle: 'Practice articles and modals', 
+          icon: <EditIcon />, 
+          path: '/GrammarFill',  // Updated path to match component directory
+          chips: ['Interactive', 'Grammar'] 
+        },
       ]
     },
     {
       id: 'audio',
       title: 'Audio Practice',
+      description: 'Improve your speaking and listening abilities through audio exercises',
       gradient: 'linear-gradient(45deg, #EC4899, #DB2777)',
       color: '#EC4899',
       borderColor: 'rgba(236, 72, 153, 0.3)',
-      description: 'Improve your speaking and listening abilities through audio exercises',
       items: [
-        { id: 'speech', title: 'Speech Practice', subtitle: 'Improve clarity and fluency', icon: <MicIcon />, path: '/analysis' },
-        { id: 'debate', title: 'Debate Mode', subtitle: 'Master the art of persuasion', icon: <GroupsIcon />, path: '/DebateMode' },
-        { id: 'pronunciation', title: 'Pronunciation', subtitle: 'Sound like a native speaker', icon: <RecordVoiceOverIcon />, path: '/Pronunciation' },
+        { 
+          id: 'speech', 
+          title: 'Speech Practice', 
+          subtitle: 'Improve clarity and fluency', 
+          icon: <MicIcon />, 
+          path: '/analysis',
+          chips: ['Speech', 'Feedback']
+        },
+        { 
+          id: 'debate', 
+          title: 'Debate Mode', 
+          subtitle: 'Master the art of persuasion', 
+          icon: <GroupsIcon />, 
+          path: '/DebateMode',
+          chips: ['Interactive', 'Speaking']
+        },
+        { 
+          id: 'story', 
+          title: 'Story Time', 
+          subtitle: 'Visual storytelling', 
+          icon: <AutoStoriesIcon />, 
+          path: '/StoryTime',
+          chips: ['Narration', 'Creative']
+        },
+        { 
+          id: 'publicSpeaking', 
+          title: 'Public Speaking Simulator', 
+          subtitle: 'Practice presentations', 
+          icon: <PresentToAllIcon />, 
+          path: '/publicspeaking',
+          chips: ['AI Feedback', 'Speaking']
+        },
+        { 
+          id: 'wordCircumlocution', 
+          title: 'Word Wizardry', 
+          subtitle: 'Describe words creatively', 
+          icon: <RecordVoiceOverIcon />, 
+          path: '/wordwizardry',
+          chips: ['Speaking', 'Vocabulary'] 
+        },
+        { 
+          id: 'speechPrecision', 
+          title: 'Speech Precision', 
+          subtitle: 'Master challenging phrases', 
+          icon: <HeadsetMicIcon />, 
+          path: '/speechprecision',
+          chips: ['Pronunciation', 'Feedback'] 
+        },
       ]
     },
     {
       id: 'visual',
       title: 'Visual Learning',
+      description: 'Learn through dynamic visual interactions and presentations',
       gradient: 'linear-gradient(45deg, #10B981, #059669)',
       color: '#10B981',
       borderColor: 'rgba(16, 185, 129, 0.3)',
-      description: 'Learn through dynamic visual interactions and presentations',
       items: [
-        { id: 'presentation', title: 'Present & Learn', subtitle: 'Practice public speaking', icon: <PresentToAllIcon />, path: '/PresentAndLearn' },
-        { id: 'story', title: 'Story Time', subtitle: 'Visual storytelling', icon: <AutoStoriesIcon />, path: '/StoryTime' },
-        { id: 'full', title: 'Full Mode', subtitle: 'Complete interactive experience', icon: <DuoIcon />, path: '/interview' },
+        { 
+          id: 'IRA', 
+          title: 'Interview Readiness Analyzer', 
+          subtitle: 'Check your style and environment', 
+          icon: <PresentToAllIcon />, 
+          path: '/PresentAndLearn',
+          chips: ['Analysis', 'Feedback']
+        },
+        { 
+          id: 'expressionMatcher', 
+          title: 'Expression Matcher', 
+          subtitle: 'Master common phrases', 
+          icon: <TranslateIcon />, 
+          path: '/expressionmatcher',
+          chips: ['Interactive', 'Vocabulary']
+        },
+        { 
+          id: 'full', 
+          title: 'Full Mode', 
+          subtitle: 'Complete interactive experience', 
+          icon: <DuoIcon />, 
+          path: '/interview',
+          chips: ['Comprehensive', 'Video']
+        },
       ]
     }
   ];
@@ -274,178 +219,480 @@ const Practice = () => {
     }
   };
 
-  const mentorVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.6,
-        ease: "easeOut"
-      }
-    }
-  };
-
-  return (
-    <PageWrapper>
-      <Container maxWidth="lg">
+  const renderPracticeCategory = (category) => {
+    return (
+      <Box key={category.id} sx={{ mb: 5 }}>
+        <Box sx={{ mb: 3 }}>
+          <Typography 
+            variant="h5" 
+            sx={{ 
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              position: 'relative',
+              paddingLeft: 2,
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                left: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: 4,
+                height: '80%',
+                background: category.color,
+                borderRadius: 4,
+              }
+            }}
+          >
+            {category.title}
+          </Typography>
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              ml: 2, 
+              color: 'text.secondary',
+              mt: 1
+            }}
+          >
+            {category.description}
+          </Typography>
+        </Box>
+        
         <motion.div
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <HeadingGradient variant="h2">
-            Practice Your Skills
-          </HeadingGradient>
-          <Subtitle variant="h6">
-            Accelerate your language learning with our interactive practice modes
-          </Subtitle>
-        </motion.div>
-
-        {/* Special AI Mentor Card */}
-        <motion.div
-          variants={mentorVariants}
+          variants={sectionVariants}
           initial="hidden"
           animate="visible"
         >
-          <MentorCard elevation={0}>
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center',
-              flexWrap: {xs: 'wrap', md: 'nowrap'},
-              mb: {xs: 2, md: 0},
-            }}>
-              <MentorIconBg>
-                <SmartToyIcon sx={{ fontSize: 32, color: '#7C3AED' }} />
-              </MentorIconBg>
-              
-              <Box sx={{ flex: 1, mb: {xs: 2, md: 0} }}>
-                <Typography 
-                  variant="h5" 
-                  sx={{ 
-                    fontWeight: 700,
-                    background: 'linear-gradient(90deg, #7C3AED, #3B82F6)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    mb: 1
-                  }}
+          <Grid container spacing={2.5}>
+            {category.items.map((item, index) => (
+              <Grid item xs={12} sm={6} md={6} lg={4} key={item.id}>
+                <motion.div
+                  custom={index}
+                  variants={cardVariants}
+                  whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                  onClick={() => navigate(item.path)}
+                  style={{ height: '100%' }}
                 >
-                  Ask AI Mentor
-                </Typography>
-                <Typography variant="body1" sx={{ color: 'rgba(219, 234, 254, 0.8)', maxWidth: 600 }}>
-                  Get personalized guidance and instant answers to all your language learning questions from your dedicated AI companion.
-                </Typography>
-              </Box>
-              
-              <Box sx={{ ml: {md: 2}, width: {xs: '100%', md: 'auto'}, textAlign: {xs: 'center', md: 'right'} }}>
-                <AccessButton 
-                  variant="contained" 
-                  endIcon={<ArrowForwardIcon />}
-                  onClick={() => navigate('/AIMentor')}
-                >
-                  Talk to Mentor
-                </AccessButton>
-              </Box>
-            </Box>
-          </MentorCard>
-        </motion.div>
-
-        {sections.map((section, sectionIndex) => (
-          <SectionWrapper key={section.id}>
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: sectionIndex * 0.2 }}
-            >
-              <Box sx={{ mb: 3 }}>
-                <SectionHeading variant="h4" color={section.color}>
-                  {section.title}
-                </SectionHeading>
-                <Typography variant="body1" sx={{ ml: 2, color: 'rgba(219, 234, 254, 0.7)' }}>
-                  {section.description}
-                </Typography>
-              </Box>
-            </motion.div>
-
-            <motion.div
-              variants={sectionVariants}
-              initial="hidden"
-              animate="visible"
-            >
-              <Grid container spacing={2.5}>
-                {section.items.map((item, index) => (
-                  <Grid item xs={12} sm={6} md={6} lg={4} key={item.id}>
-                    <motion.div
-                      custom={index}
-                      variants={cardVariants}
-                      onClick={() => navigate(item.path)}
-                      style={{ height: '100%' }}
+                  <Paper 
+                    elevation={0}
+                    sx={{ 
+                      position: 'relative',
+                      height: 130,
+                      background: 'rgba(13, 26, 38, 0.03)',
+                      backdropFilter: 'blur(12px)',
+                      borderRadius: 3,
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'all 0.3s ease',
+                      border: `1px solid ${category.borderColor}`,
+                      '&:hover': {
+                        boxShadow: `0 6px 16px ${alpha(category.color, 0.15)}`,
+                        '& .card-icon': {
+                          transform: 'scale(1.05) translateY(-2px)',
+                        },
+                        '& .card-glow': {
+                          opacity: 0.15,
+                        }
+                      }
+                    }}
+                  >
+                    {/* Gradient background glow */}
+                    <Box 
+                      className="card-glow"
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: '100%',
+                        background: category.gradient,
+                        opacity: 0.05,
+                        transition: 'opacity 0.3s ease',
+                        zIndex: 0,
+                      }}
+                    />
+                    
+                    {/* Icon */}
+                    <Box 
+                      className="card-icon"
+                      sx={{ 
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 1.5,
+                        position: 'relative',
+                        zIndex: 1,
+                        transition: 'all 0.3s ease',
+                        ml: 2
+                      }}
                     >
-                      <ElegantCard 
-                        elevation={0}
-                        gradient={section.gradient}
-                        borderColor={section.borderColor}
+                      <Box 
+                        sx={{ 
+                          width: 44,
+                          height: 44,
+                          borderRadius: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: `${alpha(category.color, 0.15)}`,
+                          boxShadow: `0 4px 10px ${alpha(category.color, 0.2)}`,
+                        }}
                       >
-                        <CardGlow gradient={section.gradient} className="card-glow" />
-                        
-                        {/* Left side - Icon */}
-                        <CardIconWrapper className="card-icon" sx={{ ml: 2 }}>
-                          <Box 
+                        {React.cloneElement(item.icon, {
+                          sx: { 
+                            fontSize: 22,
+                            color: category.color,
+                          }
+                        })}
+                      </Box>
+                    </Box>
+                    
+                    {/* Content */}
+                    <Box 
+                      sx={{ 
+                        padding: 2,
+                        position: 'relative',
+                        zIndex: 1,
+                        flex: 1,
+                      }}
+                    >
+                      <Typography 
+                        variant="h6" 
+                        sx={{ 
+                          fontSize: '1rem',
+                          fontWeight: 600,
+                          mb: 0.5,
+                          background: category.gradient,
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                        }}
+                      >
+                        {item.title}
+                      </Typography>
+                      <Typography 
+                        variant="body2" 
+                        sx={{ 
+                          fontSize: '0.8rem',
+                          color: 'text.secondary',
+                          mb: 1
+                        }}
+                      >
+                        {item.subtitle}
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {item.chips.map(chip => (
+                          <Chip 
+                            key={chip}
+                            label={chip}
+                            size="small"
                             sx={{ 
-                              width: 44,
-                              height: 44,
-                              borderRadius: '12px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: `${section.gradient}25`,
-                              boxShadow: `0 4px 10px rgba(${section.borderColor.replace(/[^\d,]/g, '')}, 0.2)`,
+                              backgroundColor: alpha(category.color, 0.1),
+                              color: category.color,
+                              fontWeight: 500,
+                              fontSize: '0.7rem',
+                              height: 22
                             }}
-                          >
-                            {React.cloneElement(item.icon, {
-                              sx: { 
-                                fontSize: 22,
-                                color: section.color,
-                              }
-                            })}
-                          </Box>
-                        </CardIconWrapper>
-                        
-                        {/* Right side - Content */}
-                        <CardContent>
-                          <Typography 
-                            variant="h6" 
-                            sx={{ 
-                              fontSize: '1rem',
-                              fontWeight: 600,
-                              mb: 0.5,
-                              background: section.gradient,
-                              WebkitBackgroundClip: 'text',
-                              WebkitTextFillColor: 'transparent',
-                            }}
-                          >
-                            {item.title}
-                          </Typography>
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontSize: '0.8rem',
-                              color: 'rgba(219, 234, 254, 0.7)'
-                            }}
-                          >
-                            {item.subtitle}
-                          </Typography>
-                        </CardContent>
-                      </ElegantCard>
-                    </motion.div>
-                  </Grid>
-                ))}
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                  </Paper>
+                </motion.div>
               </Grid>
-            </motion.div>
-          </SectionWrapper>
-        ))}
+            ))}
+          </Grid>
+        </motion.div>
+      </Box>
+    );
+  };
+
+  const renderAIMentorCard = () => {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+      >
+        <Paper 
+          elevation={0}
+          sx={{ 
+            background: 'linear-gradient(135deg, rgba(13, 26, 38, 0.03) 0%, rgba(18, 36, 53, 0.05) 100%)',
+            backdropFilter: 'blur(15px)',
+            borderRadius: 4,
+            overflow: 'hidden',
+            padding: 3,
+            position: 'relative',
+            border: '1px solid rgba(124, 58, 237, 0.2)',
+            marginBottom: 5,
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'radial-gradient(circle at 30% 40%, rgba(124, 58, 237, 0.08) 0%, rgba(59, 130, 246, 0.05) 50%, transparent 70%)',
+              zIndex: 0,
+            }
+          }}
+        >
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: {xs: 'flex-start', md: 'center'},
+            flexDirection: {xs: 'column', md: 'row'},
+            position: 'relative',
+            zIndex: 1
+          }}>
+            <Box sx={{ 
+              width: 70,
+              height: 70,
+              borderRadius: '20px',
+              background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 3,
+              position: 'relative',
+              boxShadow: '0 8px 16px rgba(124, 58, 237, 0.2)',
+              mb: {xs: 2, md: 0},
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                inset: '-3px',
+                borderRadius: '23px',
+                background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.6) 0%, rgba(59, 130, 246, 0.4) 100%)',
+                zIndex: -1,
+                opacity: 0.3,
+              }
+            }}>
+              <SmartToyIcon sx={{ fontSize: 32, color: '#7C3AED' }} />
+            </Box>
+            
+            <Box sx={{ flex: 1, mb: {xs: 2, md: 0} }}>
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700,
+                  background: 'linear-gradient(90deg, #7C3AED, #3B82F6)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  mb: 1
+                }}
+              >
+                Ask AI Mentor
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 600 }}>
+                Get personalized guidance and instant answers to all your language learning questions from your dedicated AI companion.
+              </Typography>
+            </Box>
+            
+            <Box sx={{ ml: {md: 2}, width: {xs: '100%', md: 'auto'}, textAlign: {xs: 'center', md: 'right'} }}>
+              <Button 
+                variant="contained" 
+                sx={{ 
+                  background: 'linear-gradient(90deg, #7C3AED, #3B82F6)',
+                  color: 'white',
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  '&:hover': {
+                    background: 'linear-gradient(90deg, #6D28D9, #2563EB)',
+                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                  }
+                }}
+                endIcon={<ArrowForwardIcon />}
+                onClick={() => navigate('/AIMentor')}
+              >
+                Talk to Mentor
+              </Button>
+            </Box>
+          </Box>
+        </Paper>
+
+        {/* New AI Notes Card */}
+        <Paper 
+          elevation={0}
+          sx={{ 
+            background: 'linear-gradient(135deg, rgba(13, 26, 38, 0.03) 0%, rgba(18, 36, 53, 0.05) 100%)',
+            backdropFilter: 'blur(15px)',
+            borderRadius: 4,
+            overflow: 'hidden',
+            padding: 3,
+            position: 'relative',
+            border: '1px solid rgba(124, 58, 237, 0.2)',
+            marginBottom: 5,
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'radial-gradient(circle at 30% 40%, rgba(124, 58, 237, 0.08) 0%, rgba(59, 130, 246, 0.05) 50%, transparent 70%)',
+              zIndex: 0,
+            }
+          }}
+        >
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: {xs: 'flex-start', md: 'center'},
+            flexDirection: {xs: 'column', md: 'row'},
+            position: 'relative',
+            zIndex: 1
+          }}>
+            <Box sx={{ 
+              width: 70,
+              height: 70,
+              borderRadius: '20px',
+              background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 3,
+              position: 'relative',
+              boxShadow: '0 8px 16px rgba(124, 58, 237, 0.2)',
+              mb: {xs: 2, md: 0},
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                inset: '-3px',
+                borderRadius: '23px',
+                background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.6) 0%, rgba(59, 130, 246, 0.4) 100%)',
+                zIndex: -1,
+                opacity: 0.3,
+              }
+            }}>
+              <MenuBookIcon sx={{ fontSize: 32, color: '#7C3AED' }} />
+            </Box>
+            
+            <Box sx={{ flex: 1, mb: {xs: 2, md: 0} }}>
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700,
+                  background: 'linear-gradient(90deg, #7C3AED, #3B82F6)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  mb: 1
+                }}
+              >
+                AI Learning Notes
+              </Typography>
+              <Typography variant="body1" sx={{ color: 'text.secondary', maxWidth: 600 }}>
+                Access your personalized AI-powered learning notes and track your progress through interactive study materials.
+              </Typography>
+            </Box>
+            
+            <Box sx={{ ml: {md: 2}, width: {xs: '100%', md: 'auto'}, textAlign: {xs: 'center', md: 'right'} }}>
+              <Button 
+                variant="contained" 
+                sx={{ 
+                  background: 'linear-gradient(90deg, #7C3AED, #3B82F6)',
+                  color: 'white',
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  '&:hover': {
+                    background: 'linear-gradient(90deg, #6D28D9, #2563EB)',
+                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.3)',
+                  }
+                }}
+                endIcon={<ArrowForwardIcon />}
+                onClick={() => navigate('/notes')}
+              >
+                Make Notes
+              </Button>
+            </Box>
+          </Box>
+        </Paper>
+      </motion.div>
+    );
+  };
+
+  return (
+    <Box sx={{ 
+      //bgcolor: 'background.default', 
+      minHeight: '100vh', 
+      py: 0,
+      flexGrow: 1,
+      width: '100%',
+      paddingRight: { xs: 0, md: '70px' },
+      backgroundAttachment: 'fixed',
+      boxSizing: 'border-box',
+      transition: 'padding 300ms cubic-bezier(0.4, 0, 0.2, 1) 0ms'
+    }}>
+      <Container maxWidth="lg" sx={{ py: 4, px: { xs: 2, sm: 3 } }}>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+            <Typography variant="h4" fontWeight="bold">
+              Practice Your Skills
+            </Typography>
+            <Button
+              startIcon={<ArrowBackIcon />}
+              onClick={() => navigate('/dashboard')}
+              variant="outlined"
+            >
+              Back to Dashboard
+            </Button>
+          </Box>
+
+          <Tabs 
+            value={activeTab} 
+            onChange={handleTabChange} 
+            sx={{ mb: 4 }}
+            variant="scrollable"
+            scrollButtons="auto"
+          >
+            <Tab 
+              label="All Categories" 
+              icon={<DashboardIcon />} 
+              iconPosition="start" 
+            />
+            <Tab 
+              label="Textual Learning" 
+              icon={<MenuBookIcon />} 
+              iconPosition="start" 
+            />
+            <Tab 
+              label="Audio Practice" 
+              icon={<HeadsetMicIcon />} 
+              iconPosition="start" 
+            />
+            <Tab 
+              label="Visual Learning" 
+              icon={<DuoIcon />} 
+              iconPosition="start" 
+            />
+            <Tab 
+              label="AI Assistance" 
+              icon={<SmartToyIcon />} 
+              iconPosition="start" 
+            />
+          </Tabs>
+
+          {activeTab === 0 && (
+            <>
+              {renderAIMentorCard()}
+              {practiceSections.map(category => renderPracticeCategory(category))}
+            </>
+          )}
+          {activeTab === 1 && renderPracticeCategory(practiceSections[0])}
+          {activeTab === 2 && renderPracticeCategory(practiceSections[1])}
+          {activeTab === 3 && renderPracticeCategory(practiceSections[2])}
+          {activeTab === 4 && renderAIMentorCard()}
+        </motion.div>
       </Container>
-    </PageWrapper>
+    </Box>
   );
 };
 
