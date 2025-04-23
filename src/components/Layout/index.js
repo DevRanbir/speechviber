@@ -132,10 +132,10 @@ const Layout = ({ children }) => {
       setOpen(false);
       setIconMode(true);
     } else if (isTablet) {
-      setOpen(true);
+      setOpen(false);
       setIconMode(true);
     } else {
-      setOpen(true);
+      setOpen(false);
       setIconMode(true);  // Keep sidebar closed by default on desktop
     }
   }, [isMobile, isTablet]);
@@ -148,11 +148,11 @@ const Layout = ({ children }) => {
       setOpen(false);
       setIconMode(true);
     } else if (isTablet) {
-      setOpen(true);
+      setOpen(false);
       setIconMode(true);
     } else {
-      setOpen(true);
-      setIconMode(false);
+      setOpen(false);
+      setIconMode(true);
     }
   }, [isMobile, isTablet]);
 

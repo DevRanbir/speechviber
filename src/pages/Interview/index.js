@@ -42,6 +42,8 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import { getDatabase, ref, set, serverTimestamp } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 
 // Internal Components
 const PageHeader = ({ title, subtitle, icon, backButton, onBackClick }) => (
@@ -234,6 +236,9 @@ const InterviewSimulator = () => {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [currentSpeakingId, setCurrentSpeakingId] = useState(null);
   const [messageIdCounter, setMessageIdCounter] = useState(0);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const auth = getAuth();
+  const [currentUser, setCurrentUser] = useState(null);
   const [interviewerPersona, setInterviewerPersona] = useState({
     name: 'Alex',
     role: 'Senior Recruiter',
@@ -250,6 +255,16 @@ const InterviewSimulator = () => {
   const navigate = useNavigate();
   
   const steps = ['Welcome', 'Setup', 'Interview', 'Results'];
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+    
+    // Cleanup subscription
+    return () => unsubscribe();
+  }, [auth]);
+
 
   useEffect(() => {
     // Clean up audio when component unmounts
@@ -352,15 +367,25 @@ const InterviewSimulator = () => {
     return dataUrl;
   };
 
+  // Updated Text-to-Speech function with improved voice model and caching
   const generateTextToSpeech = async (text) => {
     try {
+      // Check if text is cached
+      const cacheKey = `tts_${text.substring(0, 50)}`;
+      const cachedAudio = sessionStorage.getItem(cacheKey);
+      
+      if (cachedAudio) {
+        return cachedAudio;
+      }
+      
       const response = await axios.post(
         'https://api.groq.com/openai/v1/audio/speech',
         {
-          model: "playai-tts",
-          voice: "Gail-PlayAI",
+          model: "playai-tts-v1",
+          voice: "Alex-PlayAI",
           input: text,
-          response_format: "wav"
+          speed: 1.1,
+          response_format: "mp3"
         },
         {
           headers: {
@@ -372,8 +397,15 @@ const InterviewSimulator = () => {
       );
       
       // Convert array buffer to blob
-      const audioBlob = new Blob([response.data], { type: 'audio/wav' });
+      const audioBlob = new Blob([response.data], { type: 'audio/mp3' });
       const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // Cache the result
+      try {
+        sessionStorage.setItem(cacheKey, audioUrl);
+      } catch (e) {
+        console.warn("Failed to cache audio:", e);
+      }
       
       return audioUrl;
     } catch (error) {
@@ -382,33 +414,38 @@ const InterviewSimulator = () => {
     }
   };
   
+  // Update the playAudio function
   const playAudio = async (text, messageId) => {
-    // Stop any currently playing audio
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
+    stopSpeaking(); // Stop any current audio before starting new one
     
     setCurrentSpeakingId(messageId);
+    setIsSpeaking(true);
     
     try {
-      // Generate TTS only if needed
       const audioUrl = await generateTextToSpeech(text);
       
       if (audioUrl) {
-        audioRef.current.src = audioUrl;
+        audioRef.current = new Audio(audioUrl);
+        audioRef.current.playbackRate = 1.1;
         
         audioRef.current.onended = () => {
           setCurrentSpeakingId(null);
+          setIsSpeaking(false);
         };
         
-        audioRef.current.play().catch(err => {
-          console.error("Error playing audio:", err);
-          setCurrentSpeakingId(null);
-        });
+        const playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(err => {
+            console.error("Error playing audio:", err);
+            fallbackSpeak(text);
+          });
+        }
+      } else {
+        fallbackSpeak(text);
       }
     } catch (error) {
       console.error("Error playing audio:", error);
-      setCurrentSpeakingId(null);
+      fallbackSpeak(text);
     }
   };
   
@@ -435,10 +472,17 @@ const InterviewSimulator = () => {
   };
   
   const stopSpeaking = () => {
+    // Stop primary TTS audio
     if (audioRef.current) {
       audioRef.current.pause();
-      setCurrentSpeakingId(null);
+      audioRef.current.src = '';
     }
+    
+    // Stop Web Speech API
+    window.speechSynthesis.cancel();
+    
+    setCurrentSpeakingId(null);
+    setIsSpeaking(false);
   };
   
   const startListening = async () => {
@@ -547,6 +591,45 @@ const InterviewSimulator = () => {
       const tracks = stream.getTracks();
       tracks.forEach(track => track.stop());
     }
+  };
+
+  // Update the fallbackSpeak function
+  const fallbackSpeak = (text) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Get all available voices
+    const voices = window.speechSynthesis.getVoices();
+    
+    // Try to find a female English voice
+    const preferredVoice = voices.find(voice => 
+      voice.lang.startsWith('en') && 
+      voice.name.toLowerCase().includes('female')
+    ) || voices.find(voice => 
+      voice.lang.startsWith('en') && 
+      !voice.name.toLowerCase().includes('male')
+    ) || voices[0];
+    
+    utterance.voice = preferredVoice;
+    utterance.rate = 1.1;
+    utterance.pitch = 1.2;
+    utterance.volume = 1.0;
+    
+    // Add event handlers
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+    };
+    
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setCurrentSpeakingId(null);
+    };
+    
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      setCurrentSpeakingId(null);
+    };
+    
+    window.speechSynthesis.speak(utterance);
   };
   
   const getEndingResponse = async (userMessage, imageDataUrl) => {
@@ -834,717 +917,727 @@ const InterviewSimulator = () => {
             }
           }
         );
-        
-        const fullResponse = response.data.choices[0].message.content;
-        const parts = fullResponse.split('|||');
-        
-        firstMsg = parts[0].trim();
-        secondMsg = parts.length > 1 ? parts[1].trim() : `So, tell me about your experience that makes you a good fit for this ${jobRole} position?`;
-      }
-      
-      // Add each part of the interviewer's response separately
-      await addMessageWithAutoPlay({ text: firstMsg, isUser: false }, false);
-      
-      // Wait a moment before showing the question
-      setTimeout(async () => {
-        await addMessageWithAutoPlay({ text: secondMsg, isUser: false }, false);
-      }, 1500);
-      
-      setLoading(false);
-    } catch (error) {
-      // Continuation from the error handling in getInterviewerResponse
-      console.error("Error getting interviewer response:", error);
-      await addMessageWithAutoPlay({ 
-        text: "That's an interesting perspective. Can you tell me more about your experience with similar challenges?", 
-        isUser: false 
-      }, false);
-      setLoading(false);
-    }
-  };
-  
-  const generateInterviewResults = async () => {
-    try {
-      setLoading(true);
-      setStep('results');
-      
-      // Construct the conversation history for analysis
-      const conversationHistory = messages.map(msg => {
-        return {
-          role: msg.isUser ? "Candidate" : "Interviewer",
-          content: msg.text
-        };
-      });
-      
-      const promptContext = `You are an AI interview analyzer. You need to analyze the following interview for the ${jobRole} position at ${company}.
-
-Conversation history:
-${JSON.stringify(conversationHistory)}
-
-Provide a comprehensive analysis with the following sections:
-1. Overall Performance - A summary of how well the candidate did (1-2 paragraphs)
-2. Communication Skills - How effectively the candidate communicated (score 1-5)
-3. Technical Knowledge - Assessment of relevant knowledge for the ${jobRole} role (score 1-5)
-4. Cultural Fit - How well the candidate might fit with ${company}'s culture (score 1-5)
-5. Key Strengths - 2-3 bullet points
-6. Areas for Improvement - 2-3 bullet points
-7. Final Recommendation - Whether to progress to the next round (Yes/No/Maybe)
-
-For each section, provide a brief explanation of your assessment. Format your response as a JSON object with these sections as keys.`;
-      
-      const response = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
-        {
-          messages: [
-            {
-              role: "user",
-              content: promptContext
+            
+            const fullResponse = response.data.choices[0].message.content;
+            const parts = fullResponse.split('|||');
+            
+            firstMsg = parts[0].trim();
+            secondMsg = parts.length > 1 ? parts[1].trim() : "Can you tell me about your experience with similar roles?";
             }
-          ],
-          model: "meta-llama/llama-4-scout-17b-16e-instruct"
-        },
-        {
-          headers: {
-            'Authorization': 'Bearer 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',
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      const analysisText = response.data.choices[0].message.content;
-      let analysisJson;
-      
-      try {
-        // Extract JSON from the response if needed
-        const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          analysisJson = JSON.parse(jsonMatch[0]);
-        } else {
-          // If no JSON format found, create a basic structure
-          analysisJson = {
-            "Overall Performance": "The candidate showed some promising qualities during the interview.",
-            "Communication Skills": { "score": 3, "explanation": "The candidate communicated adequately." },
-            "Technical Knowledge": { "score": 3, "explanation": "The candidate demonstrated basic knowledge relevant to the role." },
-            "Cultural Fit": { "score": 3, "explanation": "The candidate appears to align with the company values." },
-            "Key Strengths": ["Good communication", "Relevant experience", "Positive attitude"],
-            "Areas for Improvement": ["Could provide more specific examples", "Could demonstrate more depth in technical knowledge"],
-            "Final Recommendation": "Maybe"
-          };
-        }
-      } catch (jsonErr) {
-        console.error("Error parsing analysis JSON:", jsonErr);
-        analysisJson = {
-          "Overall Performance": "The candidate showed some promising qualities during the interview.",
-          "Communication Skills": { "score": 3, "explanation": "The candidate communicated adequately." },
-          "Technical Knowledge": { "score": 3, "explanation": "The candidate demonstrated basic knowledge relevant to the role." },
-          "Cultural Fit": { "score": 3, "explanation": "The candidate appears to align with the company values." },
-          "Key Strengths": ["Good communication", "Relevant experience", "Positive attitude"],
-          "Areas for Improvement": ["Could provide more specific examples", "Could demonstrate more depth in technical knowledge"],
-          "Final Recommendation": "Maybe"
-        };
-      }
-      
-      setInterviewResults(analysisJson);
-      setLoading(false);
-    } catch (error) {
-      console.error("Error generating interview results:", error);
-      
-      // Set default results in case of error
-      setInterviewResults({
-        "Overall Performance": "The candidate showed some promising qualities during the interview.",
-        "Communication Skills": { "score": 3, "explanation": "The candidate communicated adequately." },
-        "Technical Knowledge": { "score": 3, "explanation": "The candidate demonstrated basic knowledge relevant to the role." },
-        "Cultural Fit": { "score": 3, "explanation": "The candidate appears to align with the company values." },
-        "Key Strengths": ["Good communication", "Relevant experience", "Positive attitude"],
-        "Areas for Improvement": ["Could provide more specific examples", "Could demonstrate more depth in technical knowledge"],
-        "Final Recommendation": "Maybe"
-      });
-      
-      setLoading(false);
-    }
-  };
-  
-  const startInterview = () => {
-    setStep('interview');
-    buildRelationship();
-  };
-  
-  const handleSetupSubmit = (e) => {
-    e.preventDefault();
-    setStep('setup');
-  };
-  
-  const handleBackClick = () => {
-    // Stop any currently playing audio
-    stopSpeaking();
-    
-    if (step === 'setup') {
-      setStep('intro');
-    } else if (step === 'interview') {
-      setStep('setup');
-    } else if (step === 'results') {
-      navigate('/');
-    }
-  };
-  
-  const renderIntroSection = () => (
-    <ContentContainer>
-      <PageHeader 
-        title="Interview Simulator" 
-        subtitle="Practice your interview skills with AI and get instant feedback" 
-        icon={<ChatIcon fontSize="large" />} 
-      />
-      
-      <Box sx={{ maxWidth: 'md', mx: 'auto' }}>
-        <SectionCard title="Welcome to Interview Simulator" icon={<VerifiedUserIcon />}>
-          <Box sx={{ p: 3 }}>
-            <Typography paragraph>
-              Our AI-powered interview simulator helps you prepare for job interviews by providing realistic interview experiences 
-              with personalized feedback. Here's how it works:
-            </Typography>
             
-            <Grid container spacing={3} sx={{ mb: 3 }}>
-              <Grid item xs={12} sm={4}>
-                <Box 
-                  sx={{ 
-                    textAlign: 'center', 
-                    p: 2, 
-                    height: '100%',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 2
-                  }}
-                >
-                  <Box sx={{ color: 'primary.main', mb: 1 }}>
-                    <PersonIcon fontSize="large" />
-                  </Box>
-                  <Typography variant="h6" gutterBottom>Setup Your Interview</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Choose the job role and company you're interviewing for
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Box 
-                  sx={{ 
-                    textAlign: 'center', 
-                    p: 2, 
-                    height: '100%',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 2
-                  }}
-                >
-                  <Box sx={{ color: 'primary.main', mb: 1 }}>
-                    <ChatIcon fontSize="large" />
-                  </Box>
-                  <Typography variant="h6" gutterBottom>Practice Interview</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Have a realistic conversation with an AI interviewer
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Box 
-                  sx={{ 
-                    textAlign: 'center', 
-                    p: 2, 
-                    height: '100%',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 2
-                  }}
-                >
-                  <Box sx={{ color: 'primary.main', mb: 1 }}>
-                    <InsightsIcon fontSize="large" />
-                  </Box>
-                  <Typography variant="h6" gutterBottom>Get Feedback</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Receive detailed feedback and improvement suggestions
-                  </Typography>
-                </Box>
-              </Grid>
-            </Grid>
+            // Add each part of the interviewer's response separately
+            await addMessageWithAutoPlay({ text: firstMsg, isUser: false }, false);
             
-            <Button 
-              variant="contained" 
-              size="large" 
-              fullWidth 
-              onClick={handleSetupSubmit}
-              sx={{ mt: 2 }}
-            >
-              Get Started
-            </Button>
-          </Box>
-        </SectionCard>
-        
-        <SectionCard title="How It Works" icon={<EmojiObjectsIcon />}>
-          <Box sx={{ p: 3 }}>
-            <Typography paragraph>
-              Our simulator uses advanced AI to create realistic interview scenarios. During the interview:
-            </Typography>
+            // Wait a moment before showing the second question
+            setTimeout(async () => {
+              await addMessageWithAutoPlay({ text: secondMsg, isUser: false }, false);
+            }, 2000);
             
-            <Box sx={{ pl: 2 }}>
-              <Typography paragraph sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} component="div">
-                <CameraIcon color="primary" fontSize="small" />
-                <span>Your webcam tracks facial expressions for more personalized responses</span>
-              </Typography>
-              
-              <Typography paragraph sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} component="div">
-                <MicIcon color="primary" fontSize="small" />
-                <span>Speak naturally - our voice recognition captures your responses</span>
-              </Typography>
-              
-              <Typography paragraph sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} component="div">
-                <BarChartIcon color="primary" fontSize="small" />
-                <span>Receive detailed feedback on your performance after the interview</span>
-              </Typography>
-            </Box>
-          </Box>
-        </SectionCard>
-      </Box>
-    </ContentContainer>
-  );
-  
-  const renderSetupSection = () => (
-    <ContentContainer>
-      <PageHeader 
-        title="Interview Setup" 
-        subtitle="Configure your practice interview" 
-        icon={<WorkIcon fontSize="large" />}
-        backButton
-        onBackClick={handleBackClick}
-      />
-      
-      <Box sx={{ maxWidth: 'md', mx: 'auto' }}>
-        <SectionCard title="Interview Details" icon={<WorkIcon />}>
-          <Box component="form" sx={{ p: 3 }}>
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <TextField
-                  label="Job Role/Position"
-                  placeholder="e.g. Software Engineer, Marketing Manager"
-                  fullWidth
-                  value={jobRole}
-                  onChange={(e) => setJobRole(e.target.value)}
-                  required
-                />
-              </Grid>
-              
-              <Grid item xs={12}>
-                <TextField
-                  label="Company Name"
-                  placeholder="e.g. Google, Netflix, Startup Inc."
-                  fullWidth
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  required
-                />
-              </Grid>
-              
-              <Grid item xs={12}>
-                <FormControlLabel
-                  control={
-                    <Switch 
-                      checked={audioEnabled} 
-                      onChange={(e) => setAudioEnabled(e.target.checked)} 
-                      color="primary"
-                    />
+            setLoading(false);
+            } catch (error) {
+              console.error("Error getting interviewer response:", error);
+              await addMessageWithAutoPlay({ 
+                text: "That's interesting. Could you tell me more about your approach to problem-solving?", 
+                isUser: false 
+              }, false);
+              setLoading(false);
+            }
+            };
+            
+            const generateInterviewResults = async () => {
+              try {
+                setLoading(true);
+                
+                const interviewHistory = messages.map(msg => {
+                  return {
+                    role: msg.isUser ? "Candidate" : "Interviewer",
+                    text: msg.text
+                  };
+                });
+                
+                const promptContext = `You are an expert hiring manager for ${company}. 
+                You need to provide feedback on this interview for the ${jobRole} position.
+                
+                Here is the full transcript of the interview:
+                ${JSON.stringify(interviewHistory)}
+                
+                Provide a balanced, constructive assessment with:
+                
+                1. Overall impression (strengths and areas for improvement)
+                2. Communication skills (clarity, confidence, listening)
+                3. Technical/domain knowledge for the ${jobRole} role
+                4. Cultural fit with ${company}
+                5. A score from 1-5 for each category and an overall score
+                
+                Format your response as a JSON object with these fields:
+                {
+                  "overallImpression": { "feedback": "string", "score": number },
+                  "communicationSkills": { "feedback": "string", "score": number },
+                  "technicalKnowledge": { "feedback": "string", "score": number },
+                  "culturalFit": { "feedback": "string", "score": number },
+                  "overallScore": number,
+                  "strengths": ["string", "string"],
+                  "areasForImprovement": ["string", "string"],
+                  "nextSteps": "string"
+                }
+                
+                Keep feedback constructive, specific and actionable. Be honest but encouraging.`;
+                
+                const response = await axios.post(
+                  'https://api.groq.com/openai/v1/chat/completions',
+                  {
+                    messages: [
+                      {
+                        role: "user",
+                        content: promptContext
+                      }
+                    ],
+                    model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                    response_format: { type: "json_object" }
+                  },
+                  {
+                    headers: {
+                      'Authorization': 'Bearer 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',
+                      'Content-Type': 'application/json'
+                    }
                   }
-                  label="Enable text-to-speech (interviewer speaks aloud)"
-                />
-              </Grid>
-              
-              <Grid item xs={12}>
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  You'll need to allow access to your camera and microphone for the best experience.
-                </Alert>
+                );
                 
-                <Button 
-                  variant="contained" 
-                  size="large" 
-                  fullWidth 
-                  disabled={!jobRole || !company}
-                  onClick={startInterview}
-                >
-                  Start Interview
-                </Button>
-              </Grid>
-            </Grid>
-          </Box>
-        </SectionCard>
-        
-        <SectionCard title="Interview Tips" icon={<EmojiObjectsIcon />}>
-          <Box sx={{ p: 3 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              To get the most out of your practice session:
-            </Typography>
-            
-            <Typography paragraph sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} component="div">
-              • Dress and prepare as you would for a real interview
-            </Typography>
-            
-            <Typography paragraph sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} component="div">
-              • Find a quiet space with good lighting
-            </Typography>
-            
-            <Typography paragraph sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} component="div">
-              • Speak clearly and at a natural pace
-            </Typography>
-            
-            <Typography paragraph sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }} component="div">
-              • To end the interview at any time, simply say "Thank you for your time" or "Let's end the interview"
-            </Typography>
-          </Box>
-        </SectionCard>
-      </Box>
-    </ContentContainer>
-  );
-  
-  const renderInterviewSection = () => (
-    <ContentContainer>
-      <PageHeader 
-        title={`Interview for ${jobRole} at ${company}`} 
-        subtitle="Speak naturally when prompted" 
-        icon={<ChatIcon fontSize="large" />} 
-        backButton
-        onBackClick={handleBackClick}
-      />
-      
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={7}>
-          <SectionCard>
-            <Box sx={{ height: '70vh', display: 'flex', flexDirection: 'column' }}>
-              <Box 
-                sx={{ 
-                  p: 2, 
-                  borderBottom: '1px solid', 
-                  borderColor: 'divider',
-                  bgcolor: 'background.default',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1
-                }}
-              >
-                <Avatar sx={{ bgcolor: 'primary.main' }}>
-                  {interviewerPersona.avatar}
-                </Avatar>
-                <Box>
-                  <Typography variant="subtitle1" fontWeight="medium">
-                    {interviewerPersona.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {interviewerPersona.role}
-                  </Typography>
-                </Box>
-              </Box>
-              
-              <Box 
-                sx={{ 
-                  flexGrow: 1, 
-                  overflowY: 'auto', 
-                  p: 2,
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                {messages.length === 0 && !relationshipBuilt ? (
-                  <Box 
-                    sx={{ 
-                      flexGrow: 1, 
-                      display: 'flex', 
-                      justifyContent: 'center', 
-                      alignItems: 'center',
-                      flexDirection: 'column',
-                      gap: 2,
-                      color: 'text.secondary'
-                    }}
-                  >
-                    <ChatIcon sx={{ fontSize: 60, opacity: 0.5 }} />
-                    <Typography variant="body1">
-                      Your interview will begin in a moment...
-                    </Typography>
-                  </Box>
-                ) : (
-                  <>
-                    {messages.map((message, index) => (
-                      <ChatMessage 
-                        key={index} 
-                        message={message} 
-                        isUser={message.isUser} 
-                        avatar={!message.isUser ? interviewerPersona.avatar : null}
-                        isSpeaking={!message.isUser && currentSpeakingId === message.id}
-                        onPlayAudio={!message.isUser && audioEnabled ? playAudio : null}
-                      />
-                    ))}
-                    <div ref={messagesEndRef} />
-                  </>
-                )}
-              </Box>
-              
-              <Box 
-                sx={{ 
-                  p: 2, 
-                  borderTop: '1px solid', 
-                  borderColor: 'divider',
-                  bgcolor: 'background.default',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2
-                }}
-              >
-                {isListening ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
-                    <Box
-                      component={motion.div}
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ repeat: Infinity, duration: 1.5 }}
-                      sx={{ 
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 48,
-                        height: 48,
-                        borderRadius: '50%',
-                        bgcolor: 'error.main',
-                        color: 'error.contrastText'
-                      }}
-                    >
-                      <MicIcon />
-                    </Box>
-                    <Box sx={{ flexGrow: 1 }}>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Recording... ({timeLeft}s)
-                      </Typography>
-                      <LinearProgress variant="determinate" value={(30 - timeLeft) / 30 * 100} />
-                    </Box>
-                    <IconButton onClick={stopListening}>
-                      <CancelIcon />
-                    </IconButton>
-                  </Box>
-                ) : (
-                  <Button
-                    variant="contained"
-                    startIcon={<MicIcon />}
-                    onClick={startListening}
-                    fullWidth
-                    disabled={loading || !relationshipBuilt || interviewEnded}
-                  >
-                    {interviewEnded ? "Interview Completed" : "Click to Speak"}
-                  </Button>
-                )}
-              </Box>
-            </Box>
-          </SectionCard>
-        </Grid>
-        
-        <Grid item xs={12} md={5}>
-          <Box sx={{ mb: 3 }}>
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              muted 
-              style={{ 
-                width: '100%', 
-                borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                backgroundColor: '#f0f0f0',
-                aspectRatio: '16/9',
-                objectFit: 'cover'
-              }} 
-            />
-          </Box>
-          
-          <SectionCard title="Tips & Reminders" icon={<EmojiObjectsIcon />}>
-            <Box sx={{ p: 2 }}>
-              <Typography variant="body2" paragraph>
-                • Speak clearly and at a natural pace
-              </Typography>
-              <Typography variant="body2" paragraph>
-                • Make eye contact with the camera
-              </Typography>
-              <Typography variant="body2" paragraph>
-                • To end the interview at any time, say "Thank you for your time" or "Let's end the interview"
-              </Typography>
-              <Typography variant="body2">
-                • Take your time to think before answering
-              </Typography>
-            </Box>
-          </SectionCard>
-          
-          {loading && (
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-              <CircularProgress />
-            </Box>
-          )}
-        </Grid>
-      </Grid>
-    </ContentContainer>
-  );
-  
-  const renderResultsSection = () => (
-    <ContentContainer>
-      <PageHeader 
-        title="Interview Results" 
-        subtitle="Detailed feedback on your performance" 
-        icon={<InsightsIcon fontSize="large" />} 
-        backButton
-        onBackClick={handleBackClick}
-      />
-      
-      <Box sx={{ maxWidth: 'lg', mx: 'auto' }}>
-        {interviewResults ? (
-          <>
-            <SectionCard title="Overall Performance" icon={<BarChartIcon />}>
-              <Box sx={{ p: 3 }}>
-                <Typography paragraph>
-                  {interviewResults["Overall Performance"]}
-                </Typography>
+                const resultsData = JSON.parse(response.data.choices[0].message.content);
+                setInterviewResults(resultsData);
+                setStep('results');
+                setLoading(false);
+                await saveInterviewData(resultsData);
+              } catch (error) {
+                console.error("Error generating interview results:", error);
                 
-                <Typography 
-                  variant="subtitle1" 
-                  sx={{ mt: 2, mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}
-                >
-                  <Chip 
-                    label={interviewResults["Final Recommendation"]} 
-                    color={interviewResults["Final Recommendation"] === "Yes" ? "success" : 
-                          interviewResults["Final Recommendation"] === "Maybe" ? "warning" : "error"} 
-                    size="small" 
-                  />
-                  Final Recommendation
-                </Typography>
-              </Box>
-            </SectionCard>
-            
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={4}>
-                <FeedbackCard 
-                  title="Communication Skills" 
-                  description={interviewResults["Communication Skills"].explanation} 
-                  score={interviewResults["Communication Skills"].score}
-                  icon={<ChatIcon />}
-                />
-              </Grid>
-              
-              <Grid item xs={12} md={4}>
-                <FeedbackCard 
-                  title="Technical Knowledge" 
-                  description={interviewResults["Technical Knowledge"].explanation} 
-                  score={interviewResults["Technical Knowledge"].score}
-                  icon={<EmojiObjectsIcon />}
-                />
-              </Grid>
-              
-              <Grid item xs={12} md={4}>
-                <FeedbackCard 
-                  title="Cultural Fit" 
-                  description={interviewResults["Cultural Fit"].explanation} 
-                  score={interviewResults["Cultural Fit"].score}
-                  icon={<WorkIcon />}
-                />
-              </Grid>
-            </Grid>
-            
-            <Grid container spacing={3} sx={{ mt: 1 }}>
-              <Grid item xs={12} md={6}>
-                <SectionCard title="Key Strengths" icon={<VerifiedUserIcon />}>
-                  <Box sx={{ p: 3 }}>
-                    <ul>
-                      {interviewResults["Key Strengths"].map((strength, index) => (
-                        <Typography component="li" key={index} paragraph>
-                          {strength}
-                        </Typography>
-                      ))}
-                    </ul>
-                  </Box>
-                </SectionCard>
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
-                <SectionCard title="Areas for Improvement" icon={<InsightsIcon />}>
-                  <Box sx={{ p: 3 }}>
-                    <ul>
-                      {interviewResults["Areas for Improvement"].map((area, index) => (
-                        <Typography component="li" key={index} paragraph>
-                          {area}
-                        </Typography>
-                      ))}
-                    </ul>
-                  </Box>
-                </SectionCard>
-              </Grid>
-            </Grid>
-            
-            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: 2 }}>
-              <Button 
-                variant="outlined" 
-                size="large" 
-                onClick={() => navigate('/')}
-                startIcon={<ArrowBackIcon />}
-              >
-                Back to Home
-              </Button>
-              
-              <Button 
-                variant="contained" 
-                size="large" 
-                onClick={() => {
-                  setMessages([]);
-                  setInterviewEnded(false);
-                  setRelationshipBuilt(false);
-                  setInterviewResults(null);
-                  setStep('setup');
-                }}
-              >
-                Practice Again
-              </Button>
-            </Box>
-          </>
-        ) : (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
-            <CircularProgress />
-          </Box>
-        )}
-      </Box>
-    </ContentContainer>
-  );
-  
-  let content;
-  if (step === 'intro') {
-    content = renderIntroSection();
-  } else if (step === 'setup') {
-    content = renderSetupSection();
-  } else if (step === 'interview') {
-    content = renderInterviewSection();
-  } else if (step === 'results') {
-    content = renderResultsSection();
-  }
-  
-  return (
-    <>
-      <Stepper activeStep={activeStep} alternativeLabel sx={{ pt: 3, pb: 2, px: 2 }}>
-        {steps.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
-      
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-          <Button 
-            size="small" 
-            sx={{ ml: 2 }} 
-            onClick={() => setError(null)}
-          >
-            Dismiss
-          </Button>
-        </Alert>
-      )}
-      
-      {content}
-    </>
-  );
-};
+                // Create fallback results if API fails
+                const fallbackResults = {
+                  overallImpression: { 
+                    feedback: "You demonstrated good communication skills and knowledge relevant to the position.", 
+                    score: 4 
+                  },
+                  communicationSkills: { 
+                    feedback: "Your responses were clear and well-structured.", 
+                    score: 4 
+                  },
+                  technicalKnowledge: { 
+                    feedback: "You showed strong domain knowledge with practical examples.", 
+                    score: 3.5 
+                  },
+                  culturalFit: { 
+                    feedback: "Your values seem well-aligned with our company culture.", 
+                    score: 4 
+                  },
+                  overallScore: 3.8,
+                  strengths: [
+                    "Clear communication style",
+                    "Relevant experience shared",
+                  ],
+                  areasForImprovement: [
+                    "Could provide more specific examples",
+                    "Consider asking more questions about the role"
+                  ],
+                  nextSteps: "We'll review your interview and be in touch within the next week regarding next steps."
+                };
+                await saveInterviewData(fallbackResults);
+                setInterviewResults(fallbackResults);
+                setStep('results');
+                setLoading(false);
+              }
+            };
 
-export default InterviewSimulator;
+            const saveInterviewData = async (results) => {
+              if (!currentUser || !results) {
+                console.log('Skipping interview data save:', { 
+                  currentUser: !!currentUser, 
+                  hasResults: !!results
+                });
+                return;
+              }
+            
+              try {
+                const database = getDatabase();
+                const timestamp = Date.now();
+                
+                // Create activity data for history
+                const activityData = {
+                  date: new Date().toISOString(),
+                  description: `Completed Interview for ${jobRole} position at ${company}`,
+                  duration: `${Math.floor(messages.length * 2)} min`,
+                  id: `interview_${timestamp}`,
+                  score: Math.round(results.overallScore * 20),
+                  type: "Interview",
+                  createdAt: serverTimestamp()
+                };
+            
+                // Simplified scoring data for analytics
+                const scoringData = {
+                  overallScore: Math.round(results.overallScore * 20),
+                  communication: Math.round(results.communicationSkills.score * 20),
+                  technical: Math.round(results.technicalKnowledge.score * 20),
+                  cultural: Math.round(results.culturalFit.score * 20),
+                  confidence: Math.round((results.communicationSkills.score + results.overallScore) * 10),
+                  imageAnalysis: Math.round(calculateImageScore()),
+                  createdAt: serverTimestamp(),
+                  jobRole,
+                  company
+                };
+            
+                // Save activity to history
+                const historyRef = ref(database, `users/${currentUser.uid}/history/data/${timestamp}/activities/0`);
+                await set(historyRef, activityData);
+                
+                // Save simplified scoring data
+                const scoringRef = ref(database, `users/${currentUser.uid}/interviews/scores/${timestamp}`);
+                await set(scoringRef, scoringData);
+            
+                // Save detailed interview data separately
+                const detailsRef = ref(database, `users/${currentUser.uid}/interviews/details/${timestamp}`);
+                await set(detailsRef, {
+                  conversation: messages,
+                  results,
+                  metadata: {
+                    jobRole,
+                    company,
+                    interviewer: interviewerPersona,
+                    createdAt: serverTimestamp()
+                  }
+                });
+            
+                console.log('Interview data saved successfully');
+              } catch (error) {
+                console.error('Error saving interview data:', error);
+                setError('Failed to save interview data. Please try again.');
+              }
+            };
+            
+            // Add this helper function to calculate image score
+            const calculateImageScore = () => {
+              const totalImages = messages.filter(msg => msg.isUser).length;
+              const goodPostureCount = messages.filter(msg => 
+                msg.isUser && msg.imageAnalysis?.posture === 'good'
+              ).length;
+              
+              return totalImages > 0 ? (goodPostureCount / totalImages) * 100 : 70;
+            };
+            
+            const handleStartSimulation = () => {
+              if (!jobRole || !company) {
+                setError("Please fill in all required fields");
+                return;
+              }
+              
+              setError(null);
+              setStep('interview');
+              
+              // Reset interview state
+              setMessages([]);
+              setRelationshipBuilt(false);
+              setInterviewEnded(false);
+              setInterviewResults(null);
+              
+              // Start building relationship after a short delay
+              setTimeout(() => {
+                buildRelationship();
+              }, 1000);
+            };
+            
+            const handleSetupInterview = () => {
+              setStep('setup');
+              setError(null);
+            };
+            
+            const handleBackToIntro = () => {
+              setStep('intro');
+              setError(null);
+            };
+            
+            const handleBackToSetup = () => {
+              setStep('setup');
+              setError(null);
+              setMessages([]);
+              setInterviewEnded(false);
+              setInterviewResults(null);
+            };
+            
+            const handleBackToHome = () => {
+              navigate('/');
+            };
+            
+            return (
+              <ContentContainer>
+                <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
+                  {steps.map((label) => (
+                    <Step key={label}>
+                      <StepLabel>{label}</StepLabel>
+                    </Step>
+                  ))}
+                </Stepper>
+                
+                {step === 'intro' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <PageHeader 
+                      title="Interview Simulator" 
+                      subtitle="Practice your interview skills with AI-powered mock interviews"
+                      icon={<InsightsIcon fontSize="large" />}
+                    />
+                    
+                    <SectionCard 
+                      title="Welcome to Interview Simulator"
+                      icon={<EmojiObjectsIcon />}
+                    >
+                      <Box sx={{ p: 3 }}>
+                        <Typography variant="body1" sx={{ mb: 2 }}>
+                          Our AI-powered interview simulator helps you practice for job interviews in a realistic environment. You'll interact with an AI interviewer through voice and video, just like a real interview.
+                        </Typography>
+                        
+                        <Typography variant="body1" sx={{ mb: 3 }}>
+                          The simulator will analyze your responses and provide detailed feedback to help you improve your interview skills.
+                        </Typography>
+                        
+                        <Grid container spacing={2} sx={{ mb: 2 }}>
+                          <Grid item xs={12} sm={6} md={4}>
+                            <Box sx={{ 
+                              p: 2, 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              alignItems: 'center',
+                              bgcolor: 'background.default',
+                              borderRadius: 2
+                            }}>
+                              <MicIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
+                              <Typography variant="h6" textAlign="center">Voice Interaction</Typography>
+                              <Typography variant="body2" textAlign="center" color="text.secondary">
+                                Answer questions using your microphone
+                              </Typography>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12} sm={6} md={4}>
+                            <Box sx={{ 
+                              p: 2, 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              alignItems: 'center',
+                              bgcolor: 'background.default',
+                              borderRadius: 2
+                            }}>
+                              <CameraIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
+                              <Typography variant="h6" textAlign="center">Video Feedback</Typography>
+                              <Typography variant="body2" textAlign="center" color="text.secondary">
+                                Practice with video to simulate real interviews
+                              </Typography>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12} sm={6} md={4}>
+                            <Box sx={{ 
+                              p: 2, 
+                              display: 'flex', 
+                              flexDirection: 'column', 
+                              alignItems: 'center',
+                              bgcolor: 'background.default',
+                              borderRadius: 2
+                            }}>
+                              <BarChartIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
+                              <Typography variant="h6" textAlign="center">Detailed Analysis</Typography>
+                              <Typography variant="body2" textAlign="center" color="text.secondary">
+                                Get feedback on your performance
+                              </Typography>
+                            </Box>
+                          </Grid>
+                        </Grid>
+                        
+                        <Button 
+                          variant="contained" 
+                          size="large" 
+                          onClick={handleSetupInterview}
+                          startIcon={<WorkIcon />}
+                          sx={{ mt: 2 }}
+                        >
+                          Get Started
+                        </Button>
+                      </Box>
+                    </SectionCard>
+                  </motion.div>
+                )}
+                
+                {step === 'setup' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <PageHeader 
+                      title="Setup Your Interview" 
+                      subtitle="Enter details about the job you're interviewing for"
+                      icon={<WorkIcon fontSize="large" />}
+                      backButton
+                      onBackClick={handleBackToIntro}
+                    />
+                    
+                    <SectionCard title="Interview Details" icon={<PersonIcon />}>
+                      <Box component="form" noValidate sx={{ p: 3 }}>
+                        <Grid container spacing={3}>
+                          <Grid item xs={12} sm={6}>
+                            <TextField
+                              required
+                              fullWidth
+                              id="jobRole"
+                              label="Job Position/Role"
+                              value={jobRole}
+                              onChange={(e) => setJobRole(e.target.value)}
+                              variant="outlined"
+                              placeholder="e.g. Software Engineer, Product Manager"
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <TextField
+                              required
+                              fullWidth
+                              id="company"
+                              label="Company Name"
+                              value={company}
+                              onChange={(e) => setCompany(e.target.value)}
+                              variant="outlined"
+                              placeholder="e.g. Acme Inc."
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <TextField
+                              fullWidth
+                              id="interviewerName"
+                              label="Interviewer Name (Optional)"
+                              value={interviewerName}
+                              onChange={(e) => setInterviewerName(e.target.value)}
+                              variant="outlined"
+                              placeholder="e.g. Alex Smith"
+                              helperText="Leave blank for a default interviewer"
+                            />
+                          </Grid>
+                          <Grid item xs={12} sm={6}>
+                            <FormControlLabel
+                              control={
+                                <Switch 
+                                  checked={audioEnabled}
+                                  onChange={(e) => setAudioEnabled(e.target.checked)}
+                                  color="primary"
+                                />
+                              }
+                              label="Enable Text-to-Speech"
+                            />
+                          </Grid>
+                        </Grid>
+                        
+                        {error && (
+                          <Alert severity="error" sx={{ mt: 2 }}>
+                            {error}
+                          </Alert>
+                        )}
+                        
+                        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between' }}>
+                          <Button
+                            variant="outlined"
+                            onClick={handleBackToIntro}
+                            startIcon={<ArrowBackIcon />}
+                          >
+                            Back
+                          </Button>
+                          <Button
+                            variant="contained"
+                            onClick={handleStartSimulation}
+                            disabled={loading}
+                          >
+                            Start Interview
+                          </Button>
+                        </Box>
+                      </Box>
+                    </SectionCard>
+                  </motion.div>
+                )}
+                
+                {step === 'interview' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <PageHeader 
+                      title={`Interview for ${jobRole} at ${company}`}
+                      subtitle="Speak naturally and answer the questions as you would in a real interview"
+                      icon={<ChatIcon fontSize="large" />}
+                    />
+                    
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={5}>
+                        <SectionCard>
+                          <Box sx={{ position: 'relative', minHeight: 350 }}>
+                            <video
+                              ref={videoRef}
+                              autoPlay
+                              muted
+                              playsInline
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                borderRadius: '8px',
+                                backgroundColor: '#000',
+                                minHeight: '350px'
+                              }}
+                            />
+                            
+                            {isListening && (
+                              <Box
+                                sx={{
+                                  position: 'absolute',
+                                  bottom: 16,
+                                  right: 16,
+                                  bgcolor: 'rgba(0, 0, 0, 0.7)',
+                                  color: 'white',
+                                  p: 1,
+                                  borderRadius: 2,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 1
+                                }}
+                              >
+                                <TimeIcon fontSize="small" />
+                                <Typography variant="body2">{timeLeft}s</Typography>
+                              </Box>
+                            )}
+                            
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                bottom: 16,
+                                left: 16,
+                                display: 'flex',
+                                gap: 1
+                              }}
+                            >
+                              {isListening ? (
+                                <Button
+                                  variant="contained"
+                                  color="error"
+                                  onClick={stopListening}
+                                  startIcon={<CancelIcon />}
+                                  sx={{ borderRadius: 8 }}
+                                >
+                                  Stop Recording
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="contained"
+                                  color="primary"
+                                  onClick={startListening}
+                                  startIcon={<MicIcon />}
+                                  disabled={loading || interviewEnded}
+                                  sx={{ borderRadius: 8 }}
+                                >
+                                  {interviewEnded ? "Interview Ended" : "Speak"}
+                                </Button>
+                              )}
+                              
+                              {audioEnabled && (
+                                <IconButton
+                                  color="primary"
+                                  onClick={() => {
+                                    stopSpeaking();
+                                    setAudioEnabled(false);
+                                    // Auto enable audio after 1 second
+                                    setTimeout(() => {
+                                      setAudioEnabled(true);
+                                    }, 1000);
+                                  }}
+                                  sx={{ bgcolor: 'background.paper' }}
+                                >
+                                  <VolumeUpIcon />
+                                </IconButton>
+                              )}
+                              
+                              {!audioEnabled && (
+                                <IconButton
+                                  color="default"
+                                  onClick={() => setAudioEnabled(true)}
+                                  sx={{ bgcolor: 'background.paper' }}
+                                >
+                                  <VolumeOffIcon />
+                                </IconButton>
+                              )}
+                            </Box>
+                          </Box>
+                        </SectionCard>
+                      </Grid>
+                      
+                      <Grid item xs={12} md={7}>
+                        <SectionCard title="Interview Chat" icon={<ChatIcon />}>
+                          <Box
+                            sx={{
+                              height: 400,
+                              overflowY: 'auto',
+                              p: 2,
+                              bgcolor: 'background.default',
+                              display: 'flex',
+                              flexDirection: 'column'
+                            }}
+                          >
+                            {messages.map((message, index) => (
+                              <ChatMessage
+                                key={index}
+                                message={message}
+                                isUser={message.isUser}
+                                avatar={message.isUser ? null : interviewerPersona.avatar}
+                                isSpeaking={!message.isUser && currentSpeakingId === message.id}
+                                onPlayAudio={message.isUser ? null : playAudio}
+                              />
+                            ))}
+                            
+                            {loading && (
+                              <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+                                <CircularProgress size={24} />
+                              </Box>
+                            )}
+                            
+                            <div ref={messagesEndRef} />
+                          </Box>
+                          
+                          <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+                            <Typography variant="body2" color="text.secondary">
+                              {interviewEnded 
+                                ? "Interview completed. Generating your results..."
+                                : relationshipBuilt 
+                                  ? "Click the microphone button and speak to answer the question"
+                                  : "The interviewer is introducing themselves..."
+                              }
+                            </Typography>
+                          </Box>
+                        </SectionCard>
+                      </Grid>
+                    </Grid>
+                  </motion.div>
+                )}
+                
+                {step === 'results' && interviewResults && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <PageHeader 
+                      title="Interview Results" 
+                      subtitle={`Your feedback for the ${jobRole} position at ${company}`}
+                      icon={<VerifiedUserIcon fontSize="large" />}
+                      backButton
+                      onBackClick={handleBackToSetup}
+                    />
+                    
+                    <SectionCard title="Overall Performance" icon={<BarChartIcon />}>
+                      <Box sx={{ p: 3 }}>
+                        <Box sx={{ mb: 3 }}>
+                          <Typography variant="h6" gutterBottom>
+                            Overall Score: {interviewResults.overallScore.toFixed(1)}/5
+                          </Typography>
+                          <LinearProgress 
+                            variant="determinate" 
+                            value={(interviewResults.overallScore / 5) * 100} 
+                            sx={{ height: 10, borderRadius: 5 }}
+                          />
+                        </Box>
+                        
+                        <Typography variant="body1" gutterBottom>
+                          {interviewResults.overallImpression.feedback}
+                        </Typography>
+                      </Box>
+                    </SectionCard>
+                    
+                    <Grid container spacing={3} sx={{ mt: 1 }}>
+                      <Grid item xs={12} md={6}>
+                        <FeedbackCard
+                          title="Communication Skills"
+                          description={interviewResults.communicationSkills.feedback}
+                          score={interviewResults.communicationSkills}
+                          icon={<ChatIcon />}
+                        />
+                        
+                        <FeedbackCard
+                          title="Technical Knowledge"
+                          description={interviewResults.technicalKnowledge.feedback}
+                          score={interviewResults.technicalKnowledge}
+                          icon={<WorkIcon />}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <FeedbackCard
+                          title="Cultural Fit"
+                          description={interviewResults.culturalFit.feedback}
+                          score={interviewResults.culturalFit}
+                          icon={<PersonIcon />}
+                        />
+                        
+                        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+                          <CardContent>
+                            <Typography variant="h6" gutterBottom>
+                              Strengths & Areas for Improvement
+                            </Typography>
+                            
+                            <Typography variant="subtitle1" color="primary" gutterBottom>
+                              Strengths:
+                            </Typography>
+                            <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                              {interviewResults.strengths.map((strength, index) => (
+                                <Box component="li" key={index} sx={{ mb: 0.5 }}>
+                                  <Typography variant="body2">{strength}</Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                            
+                            <Typography variant="subtitle1" color="secondary" gutterBottom>
+                              Areas for Improvement:
+                            </Typography>
+                            <Box component="ul" sx={{ pl: 2 }}>
+                              {interviewResults.areasForImprovement.map((area, index) => (
+                                <Box component="li" key={index} sx={{ mb: 0.5 }}>
+                                  <Typography variant="body2">{area}</Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+                    
+                    <SectionCard title="Next Steps" icon={<ArrowBackIcon />} sx={{ mt: 3 }}>
+                      <Box sx={{ p: 3 }}>
+                        <Typography variant="body1" gutterBottom>
+                          {interviewResults.nextSteps}
+                        </Typography>
+                        
+                        <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
+                          <Button
+                            variant="outlined"
+                            onClick={handleBackToHome}
+                            startIcon={<ArrowBackIcon />}
+                          >
+                            Back to Home
+                          </Button>
+                          <Button
+                            variant="contained"
+                            onClick={handleSetupInterview}
+                            startIcon={<WorkIcon />}
+                          >
+                            Practice Again
+                          </Button>
+                        </Box>
+                      </Box>
+                    </SectionCard>
+                  </motion.div>
+                )}
+              </ContentContainer>
+            );
+            };
+            
+            export default InterviewSimulator;

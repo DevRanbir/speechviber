@@ -802,7 +802,7 @@ const AINotesTab = () => {
           </Button>
         </Box>
         
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: { xs: 'none', sm: 'flex' }, gap: 1 }}>
           {includeExamples && <Chip label="Include Examples" size="small" color="primary" variant="outlined" />}
           {includeSummary && <Chip label="Include Summary" size="small" color="primary" variant="outlined" />}
           <Chip label={difficultyOptions.find(d => d.value === difficulty)?.label || difficulty} size="small" color="secondary" variant="outlined" />

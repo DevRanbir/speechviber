@@ -97,7 +97,7 @@ const Practice = () => {
           title: 'Grammar Fill', 
           subtitle: 'Practice articles and modals', 
           icon: <EditIcon />, 
-          path: '/GrammarFill',  // Updated path to match component directory
+          path: '/GrammarFill', 
           chips: ['Interactive', 'Grammar'] 
         },
       ]

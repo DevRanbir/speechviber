@@ -7,6 +7,7 @@ import {
   Card,
   CardContent,
   Avatar,
+  Fab,
   Chip,
   Divider,
   IconButton,
@@ -17,37 +18,42 @@ import {
   Container,
   Badge,
   MenuItem,
-  CircularProgress 
+  CircularProgress
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import { styled, alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getDatabase, ref, onValue, get } from 'firebase/database';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
-
-// Import Icons
-import MicIcon from '@mui/icons-material/Mic';
-import PersonIcon from '@mui/icons-material/Person';
-import AnalyticsIcon from '@mui/icons-material/Analytics';
-import HistoryIcon from '@mui/icons-material/History';
-import SpeedIcon from '@mui/icons-material/Speed';
-import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
-import CelebrationIcon from '@mui/icons-material/Celebration';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import StarIcon from '@mui/icons-material/Star';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
-import SettingsIcon from '@mui/icons-material/Settings';
-import LogoutIcon from '@mui/icons-material/Logout';
+import EditIcon from '@mui/icons-material/Edit';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
+import {
+  Groups as GroupsIcon,
+  Translate as TranslateIcon,
+  Mic as MicIcon,
+  Person as PersonIcon,
+  Analytics as AnalyticsIcon,
+  History as HistoryIcon,
+  Speed as SpeedIcon,
+  EmojiEvents as EmojiEventsIcon,
+  TrendingUp as TrendingUpIcon,
+  RecordVoiceOver as RecordVoiceOverIcon,
+  Celebration as CelebrationIcon,
+  ArrowForward as ArrowForwardIcon,
+  Star as StarIcon,
+  CheckCircle as CheckCircleIcon,
+  TipsAndUpdates as TipsAndUpdatesIcon,
+  Settings as SettingsIcon,
+  Logout as LogoutIcon,
+  Quiz as QuizIcon,
+  Spellcheck as SpellcheckIcon,
+  Grading as GrammarIcon,
+  Chat as ChatIcon,
+  AutoStories
+} from '@mui/icons-material';
 import Menu from '@mui/material/Menu';
-import QuizIcon from '@mui/icons-material/Quiz';
-import SpellcheckIcon from '@mui/icons-material/Spellcheck';
-import GrammarIcon from '@mui/icons-material/Grading';
-import ChatIcon from '@mui/icons-material/Chat';
-import { AutoStories } from '@mui/icons-material';
 
 // Groq API configuration
 const API_KEY = "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";
@@ -161,6 +167,7 @@ const Dashboard = () => {
   const [tipLoading, setTipLoading] = useState(true);
   const [recentActivities, setRecentActivities] = useState([]);
   const [achievements, setAchievements] = useState([]);
+  const [tooltipText, setTooltipText] = useState("Chat with AI Mentor");
   
   // New history states (matching the History component)
   const [mcqChallenges, setMcqChallenges] = useState([]);
@@ -170,33 +177,79 @@ const Dashboard = () => {
   const [debateHistory, setDebateHistory] = useState([]);
   const [storyData, setStoryData] = useState([]);
   const [photoURL, setPhotoURL] = useState(null);
+  const [interviewResults, setInterviewResults] = useState(null);
+  const [previousInterviewScore, setPreviousInterviewScore] = useState(0);
 
-  useEffect(() => {
-    if (!currentUser) {
-      navigate('/login');
-      return;
-    }
+
+    useEffect(() => {
+      const interval = setInterval(() => {
+        const texts = ["Chat with AI Mentor", "Talk to Mentor"];
+        const randomText = texts[Math.floor(Math.random() * texts.length)];
+        setTooltipText(randomText);
+      }, Math.floor(Math.random() * 3000) + 1000); // Random interval between 1-4 seconds
+      
+      return () => clearInterval(interval);
+    }, []);
     
-    // Add this new effect to fetch the profile photo
-    const fetchProfilePhoto = async () => {
-      if (currentUser.photoURL) {
-        setPhotoURL(currentUser.photoURL);
+    // Remove the duplicate useEffect
+    useEffect(() => {
+      if (!currentUser) {
+        navigate('/login');
+        return;
       }
-    };
+      
+      // Add fetchLatestInterviewResults to the existing effect
+      const fetchProfilePhoto = async () => {
+        if (currentUser.photoURL) {
+          setPhotoURL(currentUser.photoURL);
+        }
+      };
 
-    fetchProfilePhoto();
-    fetchUserData();
-    fetchUserActivities();
-    fetchUserAchievements();
-    fetchPerformanceMetrics();
-    fetchDailyTip();
-  }, [currentUser]);
+  
+      fetchProfilePhoto();
+      fetchUserData();
+      fetchUserActivities();
+      fetchUserAchievements();
+      fetchPerformanceMetrics();
+      fetchDailyTip();
+      fetchLatestInterviewResults(); // Add this line
+    }, [currentUser]);
+
+  // Add the fetchLatestInterviewResults function
+  const fetchLatestInterviewResults = async () => {
+    if (!currentUser) return;
+    
+    const interviewsRef = ref(database, `users/${currentUser.uid}/interviews/scores`);
+    try {
+      const snapshot = await get(interviewsRef);
+      const data = snapshot.val();
+      
+      if (data) {
+        const interviews = Object.entries(data)
+          .sort(([a], [b]) => b - a); // Sort by timestamp descending
+        
+        if (interviews.length > 0) {
+          setInterviewResults(interviews[0][1]); // Latest interview
+          if (interviews.length > 1) {
+            setPreviousInterviewScore(interviews[1][1].overallScore); // Previous interview
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching interview results:", error);
+    }
+  };
 
   const fetchUserData = () => {
-    const userRef = ref(database, `users/${currentUser.uid}/profile`);
+    const userRef = ref(database, `users/${currentUser.uid}`);
     onValue(userRef, (snapshot) => {
       const data = snapshot.val() || {};
-      setUserData(data);
+      setUserData({
+        name: data.name || '',
+        email: data.email || '',
+        photoURL: data.photoURL || currentUser?.photoURL || '',
+        lastLogin: data.lastLogin || ''
+      });
     }, (error) => {
       console.error("Error fetching user data:", error);
       setError("Failed to load user data");
@@ -534,34 +587,33 @@ const Dashboard = () => {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
           <Box>
             <Typography variant="h4" fontWeight="bold" sx={{ mb: 0.5 }}>
-              Welcome to <Box component="span" sx={{ color: theme.palette.primary.main }}>SpeechViber</Box>
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              {userData.name ? `Hello, ${userData.name}! Let's improve your skills today` : 'Let\'s improve your communication skills today'}
+              Welcome to <Box component="span" sx={{ color: theme.palette.primary.main }}>SpeechViber, </Box>
+              {userData.name ? ` ${userData.name.split(' ')[0]}` : ' User'}
             </Typography>
           </Box>
           
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Tooltip title="Account">
               <IconButton onClick={handleUserMenuOpen}>
-                <Avatar 
-                  src={photoURL || userData.photoURL}
-                  sx={{ 
-                    width: 40,
-                    height: 40,
-                    background: !photoURL && !userData.photoURL && 
-                      `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                    boxShadow: theme.shadows[3],
-                    cursor: 'pointer',
-                    border: `2px solid ${theme.palette.primary.main}`
-                  }}
-                >
-                  {!photoURL && !userData.photoURL && (
-                    userData.name ? 
-                      userData.name.charAt(0) : 
-                      (currentUser?.email ? currentUser.email.charAt(0) : '?')
-                  )}
-                </Avatar>
+              <Avatar 
+                src={userData?.photoURL}
+                alt={userData?.name || currentUser?.email}
+                sx={{ 
+                  width: 40,
+                  height: 40,
+                  background: !userData?.photoURL && 
+                    `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                  boxShadow: theme.shadows[3],
+                  cursor: 'pointer',
+                  border: `2px solid ${theme.palette.primary.main}`
+                }}
+              >
+                {!userData?.photoURL && (
+                  userData?.name ? 
+                    userData.name.charAt(0).toUpperCase() : 
+                    currentUser?.email?.charAt(0).toUpperCase() || '?'
+                )}
+              </Avatar>
               </IconButton>
             </Tooltip>
             {/* User Menu */}
@@ -665,7 +717,7 @@ const Dashboard = () => {
                   </Typography>
                   
                   <Typography variant="body1" sx={{ mb: 3, color: 'rgba(255, 255, 255, 0.8)' }}>
-                    Get AI-powered analysis and personalized feedback to improve your speaking abilities.
+                  {userData.name ? ` ${userData.name.split(' ')[0]}` : ' User'}, Get AI-powered analysis and personalized feedback to improve your speaking abilities.
                     Track your progress and practice with customized exercises.
                   </Typography>
                   
@@ -712,14 +764,14 @@ const Dashboard = () => {
         <Grid container spacing={3}>
           {/* Progress Dashboard */}
           <Grid item xs={12} lg={4}>
-            <Card elevation={0} sx={{ borderRadius: 3, mb: 3, border: `1px solid ${theme.palette.divider}` }}>
-            <CardContent>
+          <Card elevation={0} sx={{ borderRadius: 3, mb: 3, border: `1px solid ${theme.palette.divider}` }}>
+              <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6" fontWeight="bold">
-                    Performance Dashboard
+                    Interview Dashboard
                   </Typography>
                   <Chip 
-                    label="Last 30 days" 
+                    label="Latest Interview" 
                     size="small" 
                     color="primary" 
                     variant="outlined" 
@@ -728,57 +780,70 @@ const Dashboard = () => {
                 </Box>
                 
                 <Grid container spacing={2} sx={{ mb: 2 }}>
-                  {performanceMetrics.map((metric, index) => (
-                    <Grid item xs={12} key={index}>
-                      <Card 
-                        variant="outlined" 
-                        sx={{ 
-                          borderRadius: 2, 
-                          boxShadow: 'none',
-                          mb: 1,
-                          transition: 'all 0.2s ease',
-                          '&:hover': {
-                            borderColor: metric.color,
-                            boxShadow: `0 4px 12px rgba(0, 0, 0, 0.05)`
-                          }
-                        }}
-                      >
-                        <CardContent sx={{ p: 2 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                              <Avatar sx={{ bgcolor: `${metric.color}15`, color: metric.color }}>
-                                {metric.icon}
-                              </Avatar>
-                              <Box>
-                                <Typography variant="body2" color="text.secondary">
-                                  {metric.title}
-                                </Typography>
-                                <Typography variant="h6" fontWeight="bold">
-                                  {metric.value}%
-                                </Typography>
-                              </Box>
-                            </Box>
-                            <CircularProgressContainer value={metric.value}>
-                              <CircularProgressValue variant="caption" fontWeight="bold">
-                                {metric.value}%
-                              </CircularProgressValue>
-                            </CircularProgressContainer>
-                          </Box>
-                        </CardContent>
-                      </Card>
+                  {[
+                    { 
+                      title: 'Overall Score', 
+                      value: interviewResults?.overallScore || 0, 
+                      icon: <TrendingUpIcon sx={{ color: theme.palette.primary.main }} />,
+                      color: theme.palette.primary.main
+                    },
+                    { 
+                      title: 'Communication', 
+                      value: interviewResults?.communication || 0,
+                      icon: <RecordVoiceOverIcon sx={{ color: theme.palette.secondary.main }} />,
+                      color: theme.palette.secondary.main
+                    },
+                    { 
+                      title: 'Technical', 
+                      value: interviewResults?.technical || 0,
+                      icon: <SpeedIcon sx={{ color: '#10B981' }} />,
+                      color: '#10B981'
+                    },
+                    { 
+                      title: 'Confidence', 
+                      value: interviewResults?.confidence || 0,
+                      icon: <EmojiEventsIcon sx={{ color: '#F59E0B' }} />,
+                      color: '#F59E0B'
+                    },
+                    { 
+                      title: 'Cultural', 
+                      value: interviewResults?.cultural || 0,
+                      icon: <AutoStories sx={{ color: '#6366F1' }} />,
+                      color: '#6366F1'
+                    },
+                    { 
+                      title: 'Image', 
+                      value: interviewResults?.imageAnalysis || 0,
+                      icon: <PersonIcon sx={{ color: '#EC4899' }} />,
+                      color: '#EC4899'
+                    }
+                  ].map((metric, index) => (
+                    <Grid item xs={6} sm={4} key={index}>
+                      <Box sx={{ textAlign: 'center' }}>
+                        <CircularProgressContainer value={metric.value}>
+                          <CircularProgressValue variant="h6">
+                            {metric.value}
+                          </CircularProgressValue>
+                        </CircularProgressContainer>
+                        <Typography variant="body2" sx={{ mt: 1, fontWeight: 500 }}>
+                          {metric.title}
+                        </Typography>
+                      </Box>
                     </Grid>
                   ))}
                 </Grid>
                 
                 <Box sx={{ mt: 3 }}>
                   <Typography variant="subtitle2" fontWeight="500" sx={{ mb: 1 }}>
-                    Weekly Improvement
+                    Comparative Improvement
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <Typography variant="h5" fontWeight="bold" sx={{ mr: 1 }}>
-                      {weeklyImprovement > 0 ? `+${weeklyImprovement}%` : `${weeklyImprovement}%`}
+                      {previousInterviewScore > 0 
+                        ? ((interviewResults?.overallScore - previousInterviewScore) / previousInterviewScore * 100).toFixed(1)
+                        : interviewResults?.overallScore > 0 ? '100' : '0'}%
                     </Typography>
-                    {weeklyImprovement >= 0 ? (
+                    {(interviewResults?.overallScore - (previousInterviewScore || 0)) >= 0 ? (
                       <TrendingUpIcon color="success" />
                     ) : (
                       <TrendingUpIcon color="error" sx={{ transform: 'rotate(180deg)' }} />
@@ -786,7 +851,9 @@ const Dashboard = () => {
                   </Box>
                   <LinearProgress 
                     variant="determinate" 
-                    value={Math.min(Math.max(weeklyImprovement, 0), 100)} 
+                    value={previousInterviewScore > 0 
+                      ? Math.min(Math.max(((interviewResults?.overallScore - previousInterviewScore) / previousInterviewScore * 100), 0), 100)
+                      : interviewResults?.overallScore || 0} 
                     sx={{
                       height: 8,
                       borderRadius: 4,
@@ -831,7 +898,96 @@ const Dashboard = () => {
                   </Typography>
                 )}
               </CardContent>
+
+
             </Card>
+
+            {/* Recent Activities - Optimized for small space */}
+            <Card 
+              elevation={0} 
+              sx={{ 
+                borderRadius: 3,
+                border: `1px solid ${theme.palette.divider}`,
+                background: theme.palette.background.paper
+              }}
+            >
+              <CardContent sx={{ p: 2 }}>
+                <Typography variant="subtitle1" fontWeight="600" sx={{ mb: 1.5 }}>
+                  Recent Activities
+                </Typography>
+                
+                {loading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
+                    <CircularProgress size={20} />
+                  </Box>
+                ) : recentActivities.length > 0 ? (
+                  <Stack spacing={1}>
+                    {recentActivities.slice(0, 2).map((activity, index) => (
+                      <Box
+                        key={index}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          py: 0.5
+                        }}
+                      >
+                        <Avatar
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            mr: 1.5,
+                            bgcolor: `${activity.color}15`,
+                            color: activity.color
+                          }}
+                        >
+                          {activity.icon}
+                        </Avatar>
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                          <Typography 
+                            variant="body2" 
+                            fontWeight="500"
+                            sx={{ 
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {activity.description}
+                          </Typography>
+                          <Typography 
+                            variant="caption" 
+                            color="text.secondary"
+                            sx={{ display: 'block' }}
+                          >
+                            {formatDate(activity.date)}
+                          </Typography>
+                        </Box>
+                        <Chip
+                          label={`${activity.score}%`}
+                          size="small"
+                          sx={{
+                            height: 24,
+                            ml: 1,
+                            bgcolor: `${activity.color}15`,
+                            color: activity.color,
+                            fontWeight: '500'
+                          }}
+                        />
+                      </Box>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography 
+                    variant="body2" 
+                    color="text.secondary" 
+                    sx={{ textAlign: 'center', py: 1 }}
+                  >
+                    No recent activities
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+
           </Grid>
 
           {/* Main Content */}
@@ -879,67 +1035,144 @@ const Dashboard = () => {
               ))}
             </Grid>
 
-            {/* Recent Activities Section */}
-            <Box sx={{ mb: 4 }}>
-              <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
-                Recent Activities
+            
+                        {/* Random Practice Suggestions */}
+                        <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" fontWeight="bold" sx={{ mb: 3 }}>
+                Discover SpeechViber Activities
               </Typography>
               
               <Card elevation={0} sx={{ borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
-                <CardContent>
-                  {loading ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                      <CircularProgress size={24} />
-                    </Box>
-                  ) : recentActivities.length > 0 ? (
-                    <Stack spacing={2}>
-                      {recentActivities.map((activity, index) => (
-                        <ActivityItem key={index}>
-                          <Avatar
-                            sx={{
-                              mr: 2,
-                              bgcolor: `${activity.color}15`,
-                              color: activity.color
-                            }}
-                          >
-                            {activity.icon}
-                          </Avatar>
-                          <Box sx={{ flexGrow: 1 }}>
-                            <Typography variant="subtitle2" fontWeight="500">
-                              {activity.description}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {formatDate(activity.date)}
+                <CardContent sx={{ p: 4 }}>
+                  <Grid container spacing={4}>
+                    {[
+                      {  
+                        title: 'Debate Mode', 
+                        description: 'Master the art of persuasion', 
+                        icon: <GroupsIcon sx={{ fontSize: 24 }}/>, 
+                        path: '/DebateMode',
+                        color: '#7C3AED',
+                        tags: ['Interactive', 'Speaking'],    
+                      },
+                      { 
+                        title: 'Grammar Fill', 
+                        description: 'Practice articles and modals', 
+                        icon: <EditIcon />, 
+                        path: '/GrammarFill',
+                        color: '#3B82F6',
+                        tags: ['Interactive', 'Grammar'] 
+                      },
+                      { 
+                        title: 'Expression Matcher', 
+                        description: 'Master common phrases', 
+                        icon: <TranslateIcon />, 
+                        path: '/expressionmatcher',
+                        color: '#10B981',
+                        tags: ['Interactive', 'Vocabulary']
+                      }
+                    ].map((practice, index) => (
+                      <Grid item xs={12} md={4} key={index}>
+                        <Box
+                          onClick={() => navigate(practice.path)}
+                          sx={{
+                            p: 3,
+                            borderRadius: 2,
+                            cursor: 'pointer',
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            transition: 'all 0.3s ease',
+                            border: `1px solid ${alpha(practice.color, 0.2)}`,
+                            '&:hover': {
+                              transform: 'translateY(-4px)',
+                              boxShadow: `0 4px 12px ${alpha(practice.color, 0.2)}`,
+                              bgcolor: alpha(practice.color, 0.05)
+                            }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                            <Avatar
+                              sx={{
+                                width: 48,
+                                height: 45,
+                                bgcolor: alpha(practice.color, 0.1),
+                                color: practice.color,
+                                mr: 2
+                              }}
+                            >
+                              {practice.icon}
+                            </Avatar>
+                            <Typography variant="subtitle1" fontWeight="600">
+                              {practice.title}
                             </Typography>
                           </Box>
-                          <Chip
-                            label={`${activity.score}%`}
-                            size="small"
-                            sx={{
-                              bgcolor: `${activity.color}15`,
-                              color: activity.color,
-                              fontWeight: '500'
-                            }}
-                          />
-                        </ActivityItem>
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 3 }}>
-                      <Typography color="text.secondary">
-                        No recent activities found
-                      </Typography>
-                    </Box>
-                  )}
+                          
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, flexGrow: 1 }}>
+                            {practice.description}
+                          </Typography>
+                          
+                          <Stack direction="row" spacing={1}>
+                            {practice.tags.map((tag, tagIndex) => (
+                              <Chip
+                                key={tagIndex}
+                                label={tag}
+                                size="small"
+                                sx={{
+                                  bgcolor: alpha(practice.color, 0.1),
+                                  color: practice.color,
+                                  fontWeight: '500'
+                                }}
+                              />
+                            ))}
+                          </Stack>
+                        </Box>
+                      </Grid>
+                    ))}
+                  </Grid>
+
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => navigate('/practice')}
+                      endIcon={<ArrowForwardIcon />}
+                      sx={{
+                        borderRadius: 2,
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        py: 1.5,
+                        px: 4
+                      }}
+                    >
+                      Explore All Activities
+                    </Button>
+                  </Box>
                 </CardContent>
               </Card>
             </Box>
 
 
 
-
           </Grid>
         </Grid>
+
+    <Tooltip title={tooltipText} placement="top">
+          <Fab
+            color="primary"
+            sx={{
+              position: 'fixed',
+              bottom: 24,
+              left: 24,
+              background: 'linear-gradient(45deg, #7C3AED, #4F46E5)',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #6D31D9, #4338CA)',
+              }
+            }}
+            onClick={() => navigate('/AIMentor')}
+          >
+            <SmartToyIcon />
+          </Fab>
+        </Tooltip>
+
       </motion.div>
     </Container>
   );

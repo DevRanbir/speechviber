@@ -134,7 +134,7 @@ const AIMentor = () => {
 
     try {
       let requestBody = {
-        model: "gemma2-9b-it",
+        model: "compound-beta",
         messages: []
       };
 
@@ -168,10 +168,10 @@ const AIMentor = () => {
           "Give a balanced, moderate-length response.";
         
         requestBody = {
-          model: "gemma2-9b-it",
+          model: "compound-beta",
           messages: [{
             role: "user",
-            content: `act as you are a Professional Development Mentor working at speechviber but don't be specific about speechviber. ${lengthInstruction} ${userMessage.toLowerCase().includes('how') || 
+            content: `act as you are a Professional Development Mentor working at speechviber in india but don't be specific about speechviber. ${lengthInstruction} ${userMessage.toLowerCase().includes('how') || 
                 userMessage.toLowerCase().includes('ways') || 
                 userMessage.toLowerCase().includes('explain') || 
                 userMessage.toLowerCase().includes('tell me about') ? 

@@ -531,7 +531,7 @@ const AuthPage = () => {
                   background: 'rgba(17, 24, 39, 0.7)',
                   backdropFilter: 'blur(16px)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
-                  maxHeight: '75vh'
+                  maxHeight: '100vh'
                 }}
               >
                 <CardContent sx={{ p: 2 }}>
@@ -903,7 +903,26 @@ const AuthPage = () => {
                         </Typography>
                       </Divider>
                       
-                      {GoogleSignInButton}
+                      <GradientButton
+                        fullWidth
+                        variant="outlined"
+                        size="medium"
+                        onClick={handleGoogleSignIn}
+                        disabled={isLoading}
+                        sx={{
+                          mb: 2,
+                          color: 'white',
+                          borderColor: 'rgba(255, 255, 255, 0.3)',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          '&:hover': {
+                            borderColor: 'rgba(255, 255, 255, 0.5)',
+                            background: 'rgba(255, 255, 255, 0.1)',
+                          }
+                        }}
+                        startIcon={<GoogleIcon />}
+                      >
+                        Continue with Google
+                      </GradientButton>
                       
                       <Typography variant="caption" align="center" sx={{ 
                         color: 'rgba(255, 255, 255, 0.7)',

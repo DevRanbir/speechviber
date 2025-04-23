@@ -159,10 +159,36 @@ const ProfilePage = () => {
     fetchUserData();
     fetchUserHistory();
 
+    // Calculate points based on total time spent
+    const calculatePoints = () => {
+      const totalMinutes = userData.achievements?.totalTime || 0;
+      const totalHours = totalMinutes / 60;
+      // 10 points per hour of usage
+      const timeBasedPoints = Math.floor(totalHours * 10);
+      
+      // Update points in the database
+      if (currentUser && timeBasedPoints > 0) {
+        update(ref(database, `users/${currentUser.uid}/profile/achievements`), {
+          points: timeBasedPoints
+        });
+        
+        setUserData(prev => ({
+          ...prev,
+          achievements: {
+            ...prev.achievements,
+            points: timeBasedPoints
+          }
+        }));
+      }
+    };
+
+    calculatePoints();
+
     // Set up a timer to increment points every 10 minutes
     const intervalId = setInterval(() => {
       setUserData(prev => {
         const newPoints = prev.achievements.points + 1;
+        (calculatePoints, 5 * 60 * 1000);
         // Update points in the database
         update(ref(database, `users/${currentUser.uid}/profile/achievements`), {
           points: newPoints
@@ -179,12 +205,30 @@ const ProfilePage = () => {
 
     // Clean up the interval on component unmount
     return () => clearInterval(intervalId);
-  }, [currentUser, navigate, database]);
+  }, [currentUser, navigate, database, userData.achievements?.totalTime]);
+
   
+  // Update the determineRank function
+  const determineRank = (points) => {
+    if (points >= 500) return { rank: 'Master', stage: 'Expert' };
+    if (points >= 300) return { rank: 'Advanced', stage: 'Professional' };
+    if (points >= 200) return { rank: 'Intermediate', stage: 'Skilled' };
+    if (points >= 45) return { rank: 'Beginner Plus', stage: 'Improving' };  // Changed from 100 to 45
+    return { rank: 'Starter', stage: 'Novice' };
+  };
+
   const fetchUserData = () => {
     const userRef = ref(database, `users/${currentUser.uid}/profile`);
     onValue(userRef, (snapshot) => {
       const data = snapshot.val() || {};
+      const points = data.achievements?.points || 0;
+      const rankData = determineRank(points);
+
+      // Update database with new rank
+      update(ref(database, `users/${currentUser.uid}/profile/achievements`), {
+        currentRank: rankData.rank,
+        currentStage: rankData.stage
+      });
       
       // Handle potential null or missing values with defaults
       setUserData({
@@ -199,11 +243,11 @@ const ProfilePage = () => {
           audience: 0,
           badges: 0
         },
-        achievements: data.achievements || {  // Add this section
-          totalTime: 0,
-          points: 0,
-          currentRank: 'starter',
-          currentStage: 'Novice'
+        achievements: {
+          totalTime: data.achievements?.totalTime || 0,
+          points: points,
+          currentRank: rankData.rank,
+          currentStage: rankData.stage
         }
       });
       
@@ -820,9 +864,9 @@ const renderAchievements = () => {
                 >
                   <StatsCard>
                     {stat.icon}
-                    <Typography variant="h4" sx={{ mt: 2, color: 'white', fontWeight: 600 }}>
+                    <Typography component="div" variant="h4" sx={{ mt: 2, color: 'white', fontWeight: 600 }}>
                       {stat.isActivity ? (
-                        <Typography variant="h6" sx={{ color: 'white', textAlign: 'center' }}>
+                        <Typography component="div" variant="h6" sx={{ color: 'white', textAlign: 'center' }}>
                           {stat.value}
                         </Typography>
                       ) : (

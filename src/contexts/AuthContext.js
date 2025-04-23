@@ -12,7 +12,7 @@ import {
 } from 'firebase/auth';
 import { getDatabase, ref, get, set } from 'firebase/database';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { startActivityTracking, stopActivityTracking } from '../services/historyService';
+import { startActivityTracking, stopActivityTracking } from '../services/historyservice';
 
 export const AuthContext = createContext();
 
