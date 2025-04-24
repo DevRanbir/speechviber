@@ -217,11 +217,12 @@ const ProfilePage = () => {
     return { rank: 'Starter', stage: 'Novice' };
   };
 
+  // Modify the fetchUserData function
   const fetchUserData = () => {
-    const userRef = ref(database, `users/${currentUser.uid}/profile`);
+    const userRef = ref(database, `users/${currentUser.uid}`);
     onValue(userRef, (snapshot) => {
       const data = snapshot.val() || {};
-      const points = data.achievements?.points || 0;
+      const points = data.profile?.achievements?.points || 0;
       const rankData = determineRank(points);
 
       // Update database with new rank
@@ -232,19 +233,19 @@ const ProfilePage = () => {
       
       // Handle potential null or missing values with defaults
       setUserData({
-        name: currentUser.displayName || 'User',
-        email: currentUser.email || '',
-        avatar: currentUser.photoURL || DEFAULT_AVATAR,
-        profession: data.profession || 'Speech Professional',
-        bio: data.bio || 'Share your speaking journey and expertise here.',
-        stats: data.stats || {
+        name: data.name || currentUser.displayName || 'User',
+        email: data.email || currentUser.email || '',
+        avatar: data.photoURL || currentUser.photoURL || DEFAULT_AVATAR,
+        profession: data.profile?.profession || 'Speech Professional',
+        bio: data.profile?.bio || 'Share your speaking journey and expertise here.',
+        stats: data.profile?.stats || {
           sessions: 0,
           hours: 0,
           audience: 0,
           badges: 0
         },
         achievements: {
-          totalTime: data.achievements?.totalTime || 0,
+          totalTime: data.profile?.achievements?.totalTime || 0,
           points: points,
           currentRank: rankData.rank,
           currentStage: rankData.stage
@@ -252,10 +253,10 @@ const ProfilePage = () => {
       });
       
       setEditedUserData({
-        name: currentUser.displayName || 'User',
-        email: currentUser.email || '',
-        profession: data.profession || 'Speech Professional',
-        bio: data.bio || 'Share your speaking journey and expertise here.',
+        name: data.name || currentUser.displayName || 'User',
+        email: data.email || currentUser.email || '',
+        profession: data.profile?.profession || 'Speech Professional',
+        bio: data.profile?.bio || 'Share your speaking journey and expertise here.',
       });
       
       setLoading(false);
@@ -478,6 +479,7 @@ const renderAchievements = () => {
     setAvatarError(true);
   };
   
+  // Modify the handleSaveProfile function
   const handleSaveProfile = async () => {
     setLoading(true);
     setError(null);
@@ -502,11 +504,17 @@ const renderAchievements = () => {
       
       // Update profile data in Realtime Database
       const updates = {
-        profession: editedUserData.profession,
-        bio: editedUserData.bio,
+        name: editedUserData.name,
+        email: currentUser.email,
+        photoURL: photoURL,
+        profile: {
+          ...userData.profile,
+          profession: editedUserData.profession,
+          bio: editedUserData.bio,
+        }
       };
       
-      await update(ref(database, `users/${currentUser.uid}/profile`), updates);
+      await update(ref(database, `users/${currentUser.uid}`), updates);
       
       // Update local state
       setUserData(prev => ({

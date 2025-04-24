@@ -25,9 +25,11 @@ import { styled, alpha } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getDatabase, ref, onValue, get } from 'firebase/database';
+import { getDatabase, ref, onValue, get, set } from 'firebase/database';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
 import EditIcon from '@mui/icons-material/Edit';
+import { TextField } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import {
   Groups as GroupsIcon,
@@ -179,6 +181,9 @@ const Dashboard = () => {
   const [photoURL, setPhotoURL] = useState(null);
   const [interviewResults, setInterviewResults] = useState(null);
   const [previousInterviewScore, setPreviousInterviewScore] = useState(0);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const [nameDialogOpen, setNameDialogOpen] = useState(false);
+  const [newName, setNewName] = useState('');
 
 
     useEffect(() => {
@@ -215,6 +220,20 @@ const Dashboard = () => {
       fetchLatestInterviewResults(); // Add this line
     }, [currentUser]);
 
+    // Add this function after your other functions
+    const handleNameSubmit = async () => {
+      if (!newName.trim()) return;
+      
+      try {
+        const db = getDatabase();
+        await set(ref(db, `users/${currentUser.uid}/name`), newName.trim());
+        setNameDialogOpen(false);
+        setUserData(prev => ({ ...prev, name: newName.trim() }));
+      } catch (error) {
+        console.error("Error updating name:", error);
+      }
+    };
+
   // Add the fetchLatestInterviewResults function
   const fetchLatestInterviewResults = async () => {
     if (!currentUser) return;
@@ -240,6 +259,17 @@ const Dashboard = () => {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/auth');
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
+    setLogoutDialogOpen(false);
+  };
+  
+
   const fetchUserData = () => {
     const userRef = ref(database, `users/${currentUser.uid}`);
     onValue(userRef, (snapshot) => {
@@ -250,6 +280,10 @@ const Dashboard = () => {
         photoURL: data.photoURL || currentUser?.photoURL || '',
         lastLogin: data.lastLogin || ''
       });
+      // Open name dialog if name is not set
+      if (!data.name) {
+        setNameDialogOpen(true);
+      }
     }, (error) => {
       console.error("Error fetching user data:", error);
       setError("Failed to load user data");
@@ -517,6 +551,7 @@ const Dashboard = () => {
     setAnchorEl(null);
   };
 
+  // Modify the handleMenuAction function
   const handleMenuAction = async (action) => {
     handleUserMenuClose();
     if (action === 'profile') {
@@ -524,12 +559,7 @@ const Dashboard = () => {
     } else if (action === 'settings') {
       navigate('/settings');
     } else if (action === 'logout') {
-      try {
-        await logout();
-        navigate('/auth');
-      } catch (error) {
-        console.error("Error logging out:", error);
-      }
+      setLogoutDialogOpen(true); // Open confirmation dialog instead of logging out directly
     }
   };
 
@@ -583,7 +613,6 @@ const Dashboard = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        {/* Header with User Info and Notifications */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
           <Box>
             <Typography variant="h4" fontWeight="bold" sx={{ mb: 0.5 }}>
@@ -592,30 +621,80 @@ const Dashboard = () => {
             </Typography>
           </Box>
           
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Tooltip title="Account">
-              <IconButton onClick={handleUserMenuOpen}>
-              <Avatar 
-                src={userData?.photoURL}
-                alt={userData?.name || currentUser?.email}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tooltip title="Logout">
+              <IconButton 
+                onClick={() => handleMenuAction('logout')}
                 sx={{ 
-                  width: 40,
-                  height: 40,
-                  background: !userData?.photoURL && 
-                    `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                  boxShadow: theme.shadows[3],
-                  cursor: 'pointer',
-                  border: `2px solid ${theme.palette.primary.main}`
+                  color: 'error.main',
+                  '&:hover': {
+                    bgcolor: alpha(theme.palette.error.main, 0.1)
+                  }
                 }}
               >
-                {!userData?.photoURL && (
-                  userData?.name ? 
-                    userData.name.charAt(0).toUpperCase() : 
-                    currentUser?.email?.charAt(0).toUpperCase() || '?'
-                )}
-              </Avatar>
+                <LogoutIcon />
+              </IconButton>
+
+              <Dialog
+              open={logoutDialogOpen}
+              onClose={() => setLogoutDialogOpen(false)}
+              PaperProps={{
+                sx: {
+                  borderRadius: 2,
+                  boxShadow: theme.shadows[5]
+                }
+              }}
+            >
+              <DialogTitle sx={{ pb: 1 }}>Confirm Logout</DialogTitle>
+              <DialogContent>
+                <Typography variant="body1">
+                  Are you sure you want to log out? You will need to sign in again to access your account.
+                </Typography>
+              </DialogContent>
+              <DialogActions sx={{ p: 2, pt: 1 }}>
+                <Button 
+                  onClick={() => setLogoutDialogOpen(false)}
+                  variant="outlined"
+                  sx={{ borderRadius: 2 }}
+                >
+                 Cancel
+                </Button>
+                <Button 
+                  onClick={handleLogout}
+                  variant="contained"
+                  color="error"
+                  sx={{ borderRadius: 2 }}
+                >
+                  Logout
+                </Button>
+              </DialogActions>
+            </Dialog>
+            </Tooltip>
+            
+            <Tooltip title="Account">
+              <IconButton onClick={handleUserMenuOpen}>
+                <Avatar 
+                  src={userData?.photoURL}
+                  alt={userData?.name || currentUser?.email}
+                  sx={{ 
+                    width: 40,
+                    height: 40,
+                    background: !userData?.photoURL && 
+                      `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                    boxShadow: theme.shadows[3],
+                    cursor: 'pointer',
+                    border: `2px solid ${theme.palette.primary.main}`
+                  }}
+                >
+                  {!userData?.photoURL && (
+                    userData?.name ? 
+                      userData.name.charAt(0).toUpperCase() : 
+                      currentUser?.email?.charAt(0).toUpperCase() || '?'
+                  )}
+                </Avatar>
               </IconButton>
             </Tooltip>
+
             {/* User Menu */}
             <Menu
               anchorEl={anchorEl}
@@ -653,11 +732,6 @@ const Dashboard = () => {
               <MenuItem onClick={() => handleMenuAction('settings')}>
                 <SettingsIcon sx={{ mr: 1.5, fontSize: 20 }} />
                 Settings
-              </MenuItem>
-              <Divider />
-              <MenuItem onClick={() => handleMenuAction('logout')} sx={{ color: 'error.main' }}>
-                <LogoutIcon sx={{ mr: 1.5, fontSize: 20 }} />
-                Logout
               </MenuItem>
             </Menu>
           </Box>
@@ -1174,6 +1248,44 @@ const Dashboard = () => {
         </Tooltip>
 
       </motion.div>
+      <Dialog 
+        open={nameDialogOpen} 
+        onClose={() => {}}
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: theme.shadows[5],
+            width: '100%',
+            maxWidth: 400
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>Welcome to SpeechViber!</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Please enter your name to get started:
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            label="Your Name"
+            variant="outlined"
+            sx={{ mb: 2 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button 
+            onClick={handleNameSubmit}
+            variant="contained"
+            disabled={!newName.trim()}
+            sx={{ borderRadius: 2 }}
+          >
+            Continue
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

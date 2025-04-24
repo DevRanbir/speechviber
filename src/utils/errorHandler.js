@@ -10,7 +10,7 @@ export const handleBuildError = (error) => {
   }
 };
 
-// Handle runtime errors that error boundary might miss
+// sHandle runtime errors that error boundary might miss
 window.addEventListener('error', (event) => {
   console.error('Global error:', event.error);
   navigate('/error');

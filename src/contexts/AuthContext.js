@@ -24,9 +24,36 @@ export const useAuth = () => {
   return context;
 };
 
-export const AuthProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(() => auth.currentUser);
-  const [loading, setLoading] = useState(false);
+export function AuthProvider({ children }) {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        // Store the Google-authenticated user's UID in localStorage
+        localStorage.setItem('authenticatedUID', user.uid);
+        
+        const database = getDatabase();
+        const userRef = ref(database, `users/${user.uid}`);
+        
+        // Update last login
+        await update(userRef, {
+          lastLogin: new Date().toISOString(),
+          email: user.email,
+          name: user.displayName || '',
+          photoURL: user.photoURL || ''
+        });
+      } else {
+        localStorage.removeItem('authenticatedUID');
+      }
+      setCurrentUser(user);
+      setLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
   const [error, setError] = useState(null);
 
   useEffect(() => {

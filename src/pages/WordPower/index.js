@@ -70,21 +70,23 @@ const WordPower = () => {
           model: "gemma2-9b-it",
           messages: [{
             role: "user",
-            content: `Generate a unique and challenging vocabulary question for difficulty level ${level}/10. Choose a random type from this list: Synonyms & Antonyms, Word Meanings, Homophones, Idioms, Word Usage, Root Words. Format exactly as follows:
-              Question Type: [selected type]
-              Question: [challenging question appropriate for level ${level}]
-              Options:
-              - [option1]
-              - [option2]
-              - [option3]
-              Correct Answer: [exact match with one option]
-              Explanation: [brief explanation]
-              
+            content: `Generate a unique and challenging vocabulary question for difficulty level ${level}/10. Choose a random type from this list: Synonyms & Antonyms, Word Meanings, Homophones, Idioms, Word Usage, Root Words. 
               For difficulty ${level}/10:
               - Level 1-3: Use common everyday words
               - Level 4-6: Use intermediate vocabulary
               - Level 7-8: Use advanced vocabulary
-              - Level 9-10: Use scholarly or specialized terms`
+              - Level 9-10: Use scholarly or specialized terms
+              
+              Important: Ensure all options are complete sentences or phrases. Do not start options with dashes or bullet points.
+              Format exactly as follows:
+              Question Type: [selected type]
+              Question: [challenging question appropriate for level ${level}]
+              Options:
+              A) [first option]
+              B) [second option]
+              C) [third option]
+              Correct Answer: [write the full text of the correct answer, not just the letter]
+              Explanation: [brief explanation]`
           }]
         })
       });
@@ -103,7 +105,6 @@ const WordPower = () => {
       console.log("API Response:", responseText); // For debugging
       
       try {
-        // Extract sections using split rather than regex
         const sections = {};
         
         // Get Question Type
@@ -118,19 +119,19 @@ const WordPower = () => {
           sections.question = afterQuestion.split('\n')[0].trim();
         }
         
-        // Get Options
+        // Modified Options parsing
         const options = [];
         if (responseText.includes('Options:')) {
           const optionsSection = responseText.split('Options:')[1].split('Correct Answer:')[0];
-          const optionLines = optionsSection.split('\n').filter(line => line.trim().startsWith('-'));
+          const optionLines = optionsSection.split('\n')
+            .filter(line => line.trim())
+            .map(line => line.replace(/^[A-C]\)/, '').trim())
+            .filter(option => option);
           
-          optionLines.forEach(line => {
-            const option = line.replace('-', '').trim();
-            if (option) options.push(option);
-          });
+          options.push(...optionLines);
         }
         sections.options = options;
-        
+
         // Get Correct Answer
         if (responseText.includes('Correct Answer:')) {
           const afterCorrect = responseText.split('Correct Answer:')[1];
@@ -160,6 +161,11 @@ const WordPower = () => {
           if (sections.options[randomIndex] !== sections.correct) {
             sections.options.splice(randomIndex, 1);
           }
+        }
+        
+        // Additional validation for option format
+        if (sections.options.some(opt => opt.startsWith('-'))) {
+          sections.options = sections.options.map(opt => opt.replace(/^-\s*/, ''));
         }
         
         // Fill with dummy options if we don't have enough
@@ -203,7 +209,7 @@ const WordPower = () => {
         const wordPowerData = {
           time: new Date().toISOString(),
           attemptedQuestions: questionCount,
-          score: score,
+          score: Math.min(100, score),
           difficulty: difficulty
         };
 
@@ -231,9 +237,15 @@ const WordPower = () => {
     
     // Update score based on correctness
     if (correct) {
-      // Calculate score based on difficulty
-      const pointsEarned = difficulty * 10;
-      setScore(prev => prev + pointsEarned);
+      // Calculate points based on difficulty (max 100 points)
+      const basePoints = 10; // Base points for correct answer
+      const difficultyMultiplier = difficulty / 10; // Convert difficulty to percentage
+      const pointsEarned = Math.min(
+        basePoints * difficultyMultiplier,
+        100 - score // Ensure we don't exceed 100
+      );
+      
+      setScore(prev => Math.min(100, prev + Math.round(pointsEarned)));
     }
   };
 

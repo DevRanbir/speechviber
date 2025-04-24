@@ -124,7 +124,6 @@ const AccountSettingsApp = () => {
     }
   };
 
-  // Handle clear user data
   const handleClearData = async () => {
     if (!clearDataPassword) {
       setClearDataError('Please enter your password');
@@ -147,25 +146,31 @@ const AccountSettingsApp = () => {
       const db = getDatabase();
       const userDataRef = ref(db, `users/${currentUser.uid}`);
       
-      // Reset all data paths
+      // Reset all data paths except createdAt, email, and lastLogin
       const updates = {
-        'mcq-challenges': null,
-        'word-power': null,
-        'grammar-check': null,
-        'fasttractanalysis': null,
-        'tongue-twister': null,
+        'custom-interview-analysis': null,
         'debate': null,
-        'story': null,
-        'history/data': null,
+        'fasttractanalysis': null,
+        'grammar-check': null,
+        'grammar-fill': null,
+        'interview-readiness': null,
+        'interviews': null,
+        'mcq-challenges': null,
         'preferences': null,
+        'pronunciation-pro': null,
+        'public-speaking': null,
         'savedItems': null,
-        'profile/stats': {
-          totalSessions: 0,
-          totalTime: 0,
-          averageScore: 0,
-          completedChallenges: 0,
-          lastActive: new Date().toISOString()
-        }
+        'story': null,
+        'tongue-twister': null,
+        'word-context': null,
+        'word-power': null,
+        'word-wizardry': null,
+        'profile/achievements': null,
+        'profile/bio': null,
+        'profile/profession': null,
+        'profile/stats': null,
+        'history': null,
+        'name': null,
       };
       
       // Update database
