@@ -113,7 +113,7 @@ const StyledTab = styled(Tab)(({ theme }) => ({
 
 const AuthPage = () => {
   useErrorBoundary();
-  const { login, signup, googleSignIn } = useAuth();
+  const { login, signup, googleSignIn, currentUser } = useAuth();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -125,6 +125,7 @@ const AuthPage = () => {
   const [alertSeverity, setAlertSeverity] = useState('success');
   const [showAlert, setShowAlert] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -289,31 +290,44 @@ const AuthPage = () => {
   const handleLogin = useCallback(async (e) => {
     e.preventDefault();
     
-    if (isLoading || !validateForm()) return;
-    
-    setIsLoading(true);
-    setAlertMessage('Attempting to log in...');
-    setAlertSeverity('info');
-    setShowAlert(true);
+    if (isLoading || !validateForm()) {
+      return;
+    }
     
     try {
-      // Ensure we're using the login function for login
-      const result = await login(formData.email, formData.password);
+      setIsLoading(true);
+      setAlertMessage('Logging in...');
+      setAlertSeverity('info');
+      setShowAlert(true);
+      
+      await login(formData.email, formData.password);
+      
       setAlertMessage('Login successful!');
       setAlertSeverity('success');
       setShowAlert(true);
+      setIsTransitioning(true);
+      navigate('/dashboard', { replace: true });
       
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1000);
     } catch (error) {
-      setAlertMessage(error.message || 'Login failed. Please try again.');
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errorMessage = 'Invalid email or password. Please try again.';
+      } else if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email.';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many failed attempts. Please try again later.';
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your connection.';
+      }
+      
+      setAlertMessage(errorMessage);
       setAlertSeverity('error');
       setShowAlert(true);
-    } finally {
       setIsLoading(false);
+      setIsTransitioning(false);
     }
-  }, [formData, isLoading, login, navigate]);
+  }, [formData, isLoading, login, navigate, validateForm]);
 
   const handleSignup = useCallback(async (e) => {
     e.preventDefault();
@@ -403,6 +417,8 @@ const AuthPage = () => {
       height: '100vh',
       background: 'linear-gradient(135deg, #111827 0%, #1E293B 100%)',
       position: 'relative',
+      opacity: isTransitioning ? 0.7 : 1,
+      transition: 'opacity 0.3s ease-in-out',
       overflow: 'hidden',
       display: 'flex',
       alignItems: 'center',
@@ -419,6 +435,26 @@ const AuthPage = () => {
         right: '-100px',
         zIndex: 0
       }} />
+
+      {/* Add loading overlay */}
+      {isTransitioning && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            bgcolor: 'rgba(0, 0, 0, 0.3)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <CircularProgress />
+        </Box>
+      )}
       
       <Box sx={{
         position: 'absolute',

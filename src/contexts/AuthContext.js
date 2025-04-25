@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
 import { auth } from '../firebase/config';
 import { 
   createUserWithEmailAndPassword, 
@@ -8,10 +8,12 @@ import {
   setPersistence,
   browserLocalPersistence,
   GoogleAuthProvider, 
-  signInWithPopup
+  signInWithPopup,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { getDatabase, ref, get, set, update } from 'firebase/database';
 import { startActivityTracking, stopActivityTracking } from '../services/historyservice';
+import CustomLoader from '../components/CustomLoader';
 
 export const AuthContext = createContext();
 
@@ -27,6 +29,19 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Reset password function that was referenced but not defined
+  const resetPassword = async (email) => {
+    try {
+      setError(null);
+      await sendPasswordResetEmail(auth, email);
+      return true;
+    } catch (error) {
+      console.error("Password reset error:", error.code, error.message);
+      setError(error.message);
+      throw error;
+    }
+  };
 
   const googleSignIn = async () => {
     try {
@@ -72,6 +87,7 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Initialize auth and set up persistence
   useEffect(() => {
     // Enable offline persistence
     const initAuth = async () => {
@@ -151,32 +167,43 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     setError(null);
-    setLoading(true);
     
     if (!navigator.onLine) {
       setError('You appear to be offline. Please check your internet connection.');
-      setLoading(false);
       throw new Error('No internet connection');
     }
     
     try {
+      // First verify credentials
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
-      // Check for user data in database
+      // Show success message immediately after credentials verification
+      setError('Login successful! Preparing your dashboard...');
+      
+      
+      // Then proceed with loading and database operations
+      setLoading(true);
+      
       const database = getDatabase();
       const userRef = ref(database, `users/${userCredential.user.uid}`);
       const snapshot = await get(userRef);
       
-      // If user data doesn't exist, create it instead of throwing an error
       if (!snapshot.exists()) {
-        console.log("User authenticated but no database record found. Creating one now.");
         await set(userRef, {
           email: userCredential.user.email,
           createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString()
+          lastLogin: new Date().toISOString(),
+          profile: {
+            achievements: {
+              currentRank: "Starter",
+              currentStage: "Novice",
+              points: 0,
+              totalTime: 0,
+              totalSeconds: 0
+            }
+          }
         });
       } else {
-        // Update last login time
         await update(userRef, {
           lastLogin: new Date().toISOString()
         });
@@ -184,24 +211,25 @@ export function AuthProvider({ children }) {
 
       console.log("Login successful:", userCredential.user.email);
       return userCredential;
+      
     } catch (error) {
       console.error('Login error:', error.code || error.message);
       
-      // Handle specific Firebase auth errors with user-friendly messages
+      let errorMessage;
       if (error.code === 'auth/network-request-failed') {
-        setError('Network connection issue. Please check your internet connection and try again.');
-      } else if (error.code === 'auth/wrong-password') {
-        setError('Incorrect password. Please try again.');
+        errorMessage = 'Network connection issue. Please check your internet connection and try again.';
+      } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errorMessage = 'Invalid email or password. Please try again.';
       } else if (error.code === 'auth/user-not-found') {
-        setError('No account found with this email. Please check your email or sign up.');
+        errorMessage = 'No account found with this email. Please check your email or sign up.';
       } else if (error.code === 'auth/too-many-requests') {
-        setError('Too many failed login attempts. Please try again later.');
+        errorMessage = 'Too many failed attempts. Please try again later.';
       } else {
-        setError(error.message || 'Authentication failed. Please try again.');
+        errorMessage = 'Authentication failed. Please try again.';
       }
+      
+      setError(errorMessage);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -249,19 +277,25 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const value = {
+  const value = useMemo(() => ({
     currentUser,
+    loading,
+    error,
     login,
     signup,
     logout,
     googleSignIn,
-    loading,
-    error
-  };
+    resetPassword
+  }), [currentUser, loading, error]);
+
+  // Loading state rendering
+  if (loading) {
+    return <CustomLoader />;
+  }
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 }

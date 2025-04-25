@@ -81,7 +81,6 @@ const ProtectedRoute = ({ children }) => {
 
 const App = () => {
   const [mode] = useState('dark');
-  const [isPending, startTransition] = useTransition();
   const theme = useMemo(
     () =>
       createTheme({
@@ -98,49 +97,49 @@ const App = () => {
   );
 
   return (
-    <AuthProvider>
-      <ParticleProvider>
-        <MuiThemeProvider theme={theme}>
-          <CssBaseline />
-          <ParticleCursor />
-          <ErrorBoundary>
-          <Suspense fallback={<CustomLoader />}>
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/interview" element={<Interview />} />
-                <Route path="/practice" element={<Practice />} />
-                <Route path="analysis" element={<Analysis />} />
-                <Route path="profile" element={<Profile />} />
-                <Route path="settings" element={<Settings />} />
-                <Route path="chatbox" element={<Chatbox />} />
-                <Route path="grammarcheck" element={<GrammarCheck />} />
-                <Route path="pronunciation" element={<Pronunciation />} />
-                <Route path="wordpower" element={<WordPower />} />
-                <Route path="debatemode" element={<DebateMode />} />
-                <Route path="presentandlearn" element={<PresentAndLearn />} />
-                <Route path="storytime" element={<StoryTime />} />
-                <Route path="AIMentor" element={<AIMentor />} />
-                <Route path="history" element={<History />} />
-                <Route path="notes" element={<Notes />} />
-                <Route path="tonguetwister" element={<TongueTwister />} />
-                <Route path="publicspeaking" element={<PublicSpeaking />} />
-                <Route path="expressionmatcher" element={<ExpressionMatcher />} />
-                <Route path="wordcontext" element={<WordContext />} />
-                <Route path="grammarfill" element={<GrammarFill />} />
-                <Route path="wordwizardry" element={<WordWizardry />} />
-                <Route path="speechprecision" element={<SpeechPrecision />} />
-                <Route path="info" element={<Info />} />
-                <Route path="error" element={<ErrorPage />} />
-              </Route>
-            </Routes>
-          </Suspense>
-          </ErrorBoundary>
-        </MuiThemeProvider>
-      </ParticleProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ParticleProvider>
+          <MuiThemeProvider theme={theme}>
+            <CssBaseline />
+            <ParticleCursor />
+            <Suspense fallback={<CustomLoader />}>
+              <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/interview" element={<Interview />} />
+                  <Route path="/practice" element={<Practice />} />
+                  <Route path="analysis" element={<Analysis />} />
+                  <Route path="profile" element={<Profile />} />
+                  <Route path="settings" element={<Settings />} />
+                  <Route path="chatbox" element={<Chatbox />} />
+                  <Route path="grammarcheck" element={<GrammarCheck />} />
+                  <Route path="pronunciation" element={<Pronunciation />} />
+                  <Route path="wordpower" element={<WordPower />} />
+                  <Route path="debatemode" element={<DebateMode />} />
+                  <Route path="presentandlearn" element={<PresentAndLearn />} />
+                  <Route path="storytime" element={<StoryTime />} />
+                  <Route path="AIMentor" element={<AIMentor />} />
+                  <Route path="history" element={<History />} />
+                  <Route path="notes" element={<Notes />} />
+                  <Route path="tonguetwister" element={<TongueTwister />} />
+                  <Route path="publicspeaking" element={<PublicSpeaking />} />
+                  <Route path="expressionmatcher" element={<ExpressionMatcher />} />
+                  <Route path="wordcontext" element={<WordContext />} />
+                  <Route path="grammarfill" element={<GrammarFill />} />
+                  <Route path="wordwizardry" element={<WordWizardry />} />
+                  <Route path="speechprecision" element={<SpeechPrecision />} />
+                  <Route path="info" element={<Info />} />
+                  <Route path="error" element={<ErrorPage />} />
+                </Route>
+              </Routes>
+            </Suspense>
+          </MuiThemeProvider>
+        </ParticleProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 
