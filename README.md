@@ -1,3 +1,5 @@
+![image](https://github.com/user-attachments/assets/5f590553-6d6a-4263-838f-8b2326780910)
+
 # 🚀 SpeechViber  
 *Empowering better communication through AI-driven real-time reviews.*
 
