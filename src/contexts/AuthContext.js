@@ -7,11 +7,10 @@ import {
   onAuthStateChanged,
   setPersistence,
   browserLocalPersistence,
-  initializeAuth,
-  indexedDBLocalPersistence
+  GoogleAuthProvider, 
+  signInWithPopup
 } from 'firebase/auth';
-import { getDatabase, ref, get, set } from 'firebase/database';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getDatabase, ref, get, set, update } from 'firebase/database';
 import { startActivityTracking, stopActivityTracking } from '../services/historyservice';
 
 export const AuthContext = createContext();
@@ -27,40 +26,56 @@ export const useAuth = () => {
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        // Store the Google-authenticated user's UID in localStorage
-        localStorage.setItem('authenticatedUID', user.uid);
-        
-        const database = getDatabase();
-        const userRef = ref(database, `users/${user.uid}`);
-        
-        // Update last login
-        await update(userRef, {
-          lastLogin: new Date().toISOString(),
-          email: user.email,
-          name: user.displayName || '',
-          photoURL: user.photoURL || ''
-        });
-      } else {
-        localStorage.removeItem('authenticatedUID');
-      }
-      setCurrentUser(user);
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
-
   const [error, setError] = useState(null);
 
+  const googleSignIn = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      const database = getDatabase();
+      const userRef = ref(database, `users/${user.uid}`);
+      
+      // Check if user data exists
+      const snapshot = await get(userRef);
+      
+      if (!snapshot.exists()) {
+        // Only create new user data if it doesn't exist
+        await set(userRef, {
+          email: user.email,
+          name: user.displayName || '',
+          photoURL: user.photoURL || '',
+          lastLogin: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          profile: {
+            achievements: {
+              currentRank: "Starter",
+              currentStage: "Novice",
+              points: 0,
+              totalTime: 0,
+              totalSeconds: 0
+            }
+          }
+        });
+      } else {
+        // Only update login time and preserve all other data
+        await update(userRef, {
+          lastLogin: new Date().toISOString()
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("Google sign-in error:", error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
-    // Enable offline persistence with better error handling
+    // Enable offline persistence
     const initAuth = async () => {
       try {
-        // Use only one persistence method to avoid conflicts
         await setPersistence(auth, browserLocalPersistence);
         console.log("Firebase persistence set successfully");
       } catch (error) {
@@ -72,17 +87,59 @@ export function AuthProvider({ children }) {
     initAuth();
     
     // Set up auth state listener
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log("Auth state changed:", user ? `${user.email} logged in` : "No user");
+      
+      if (user) {
+        // Store the authenticated user's UID in localStorage
+        localStorage.setItem('authenticatedUID', user.uid);
+        
+        const database = getDatabase();
+        const userRef = ref(database, `users/${user.uid}`);
+        
+        try {
+          const snapshot = await get(userRef);
+          
+          if (!snapshot.exists()) {
+            // Only create new user data if it doesn't exist
+            await set(userRef, {
+              email: user.email,
+              name: user.displayName || '',
+              photoURL: user.photoURL || '',
+              lastLogin: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              profile: {
+                achievements: {
+                  currentRank: "Starter",
+                  currentStage: "Novice",
+                  points: 0,
+                  totalTime: 0,
+                  totalSeconds: 0
+                }
+              }
+            });
+          } else {
+            // Update only login time and preserve existing data
+            await update(userRef, {
+              lastLogin: new Date().toISOString(),
+              email: user.email,
+              name: user.displayName || snapshot.val().name,
+              photoURL: user.photoURL || snapshot.val().photoURL
+            });
+          }
+        } catch (error) {
+          console.error("Database operation failed:", error);
+        }
+      }
+      
       setCurrentUser(user);
-      // Once we have a definitive answer from Firebase about auth state, we can consider loading complete
       setLoading(false);
     });
-  
+
     return unsubscribe;
   }, []);
 
-  // Add activity tracking effect inside the component
+  // Add activity tracking effect
   useEffect(() => {
     if (currentUser) {
       startActivityTracking(currentUser.uid);
@@ -120,10 +177,11 @@ export function AuthProvider({ children }) {
         });
       } else {
         // Update last login time
-        await set(ref(database, `users/${userCredential.user.uid}/lastLogin`), new Date().toISOString());
+        await update(userRef, {
+          lastLogin: new Date().toISOString()
+        });
       }
 
-      setCurrentUser(userCredential.user);
       console.log("Login successful:", userCredential.user.email);
       return userCredential;
     } catch (error) {
@@ -157,6 +215,16 @@ export function AuthProvider({ children }) {
       await set(ref(database, `users/${userCredential.user.uid}`), {
         email: userCredential.user.email,
         createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        profile: {
+          achievements: {
+            currentRank: "Starter",
+            currentStage: "Novice",
+            points: 0,
+            totalTime: 0,
+            totalSeconds: 0
+          }
+        }
       });
 
       console.log("User signed up successfully:", userCredential.user.email);
@@ -172,6 +240,7 @@ export function AuthProvider({ children }) {
     try {
       setError(null);
       await signOut(auth);
+      localStorage.removeItem('authenticatedUID');
       console.log("User logged out successfully");
     } catch (error) {
       console.error("Logout error:", error.code, error.message);
@@ -180,41 +249,19 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const googleSignIn = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      
-      // Initialize database
-      const database = getDatabase();
-      const userRef = ref(database, `users/${result.user.uid}`);
-      await set(userRef, {
-        name: result.user.displayName,
-        email: result.user.email,
-        photoURL: result.user.photoURL,
-        lastLogin: new Date().toISOString()
-      });
-  
-      return result.user;
-    } catch (error) {
-      console.error("Google Sign-in error:", error);
-      throw error;
-    }
-  };
-
   const value = {
     currentUser,
-    signup,
     login,
+    signup,
     logout,
+    googleSignIn,
     loading,
-    error,
-    googleSignIn
+    error
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
-};
+}

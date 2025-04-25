@@ -297,12 +297,12 @@ const AuthPage = () => {
     setShowAlert(true);
     
     try {
-      await login(formData.email, formData.password);
+      // Ensure we're using the login function for login
+      const result = await login(formData.email, formData.password);
       setAlertMessage('Login successful!');
       setAlertSeverity('success');
       setShowAlert(true);
       
-      // Add a small delay before navigation to allow the user to see the success message
       setTimeout(() => {
         navigate('/dashboard');
       }, 1000);
@@ -321,19 +321,20 @@ const AuthPage = () => {
     if (isLoading || !validateForm()) return;
     
     setIsLoading(true);
+    setAlertMessage('Creating your account...');
+    setAlertSeverity('info');
+    setShowAlert(true);
     
     try {
-      // Create new account
-      await signup(formData.email, formData.password, {
-        name: formData.name,
-        age: formData.age,
-        phone: formData.phone,
-      });
-      
+      // Ensure we're using the signup function for registration
+      const result = await signup(formData.email, formData.password);
       setAlertMessage('Account created successfully!');
       setAlertSeverity('success');
       setShowAlert(true);
-      navigate('/dashboard');
+      
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1000);
     } catch (error) {
       setAlertMessage(error.message || 'Signup failed. Please try again.');
       setAlertSeverity('error');

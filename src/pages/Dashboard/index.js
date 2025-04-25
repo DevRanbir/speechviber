@@ -566,10 +566,10 @@ const Dashboard = () => {
   // Features array
   const features = [
     {
-      title: 'Speech Analysis',
-      description: 'Get detailed insights on your performance',
+      title: 'Rapid Speaking',
+      description: 'Get detailed insights on your Speaking Skills',
       icon: <AnalyticsIcon sx={{ color: '#10B981' }} fontSize="large" />,
-      path: '/analysis',
+      path: '/publicspeaking',
       color: '#10B981',
       delay: 0.3
     },
@@ -590,7 +590,7 @@ const Dashboard = () => {
       delay: 0.4
     },
     {
-      title: 'Practice Mode',
+      title: 'Practice Modules',
       description: 'Enhance your skills with guided exercises',
       icon: <MicIcon color="primary" fontSize="large" />,
       path: '/practice',
@@ -1229,7 +1229,7 @@ const Dashboard = () => {
           </Grid>
         </Grid>
 
-    <Tooltip title={tooltipText} placement="top">
+        <Tooltip title={tooltipText} placement="top">
           <Fab
             color="primary"
             sx={{

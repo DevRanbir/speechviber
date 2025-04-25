@@ -265,8 +265,8 @@ const TextualHistory = () => {
     
     if (viewMode === 'list') {
       return (
-        <Fade in={true} timeout={300}>
-          <Grid item xs={12} key={activity.id}>
+        <Fade in={true} timeout={300} key={activity.id}>
+          <Grid item xs={12}>
             <Card 
               sx={{ 
                 display: 'flex', 
@@ -349,8 +349,8 @@ const TextualHistory = () => {
 
     // Grid view
     return (
-      <Fade in={true} timeout={300}>
-        <Grid item xs={12} sm={6} md={4} key={activity.id}>
+      <Fade in={true} timeout={300} key={activity.id}>
+        <Grid item xs={12} sm={6} md={4}>
           <Card sx={{ 
             height: '100%',
             display: 'flex',
@@ -517,39 +517,52 @@ const TextualHistory = () => {
                   onChange={handleTabChange}
                   variant="scrollable"
                   scrollButtons="auto"
+                  TabIndicatorProps={{
+                    style: {
+                      backgroundColor: theme.palette.primary.main
+                    }
+                  }}
                   sx={{ 
                     borderBottom: 1, 
                     borderColor: 'divider',
                     '& .MuiTab-root': {
                       minHeight: 48,
-                      textTransform: 'none',
-                      fontWeight: 'medium'
+                      textTransform: 'none'
                     }
                   }}
                 >
                   <Tab 
-                    label="All Activities"
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <MenuBookIcon />
+                        <span>All Activities</span>
+                      </Box>
+                    }
                     value="all"
-                    icon={<MenuBookIcon />}
-                    iconPosition="start"
-                    sx={{ py: 1.5 }}
-                    wrapped
                   />
                   
-                  {activityTypes.map(type => (
-                    <Tab
-                      key={type.id}
-                      label={type.label}
-                      value={type.id}
-                      icon={<type.icon />}
-                      iconPosition="start"
-                      wrapped
-                      sx={{ py: 1.5 }}
-                      component={activityCounts[type.id] > 0 ? Badge : 'div'}
-                      badgeContent={activityCounts[type.id] || null}
-                      color="secondary" 
-                    />
-                  ))}
+                  {activityTypes.map(type => {
+                    const count = activityCounts[type.id] || 0;
+                    return (
+                      <Tab
+                        key={type.id}
+                        label={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <type.icon />
+                            <span>{type.label}</span>
+                            {count > 0 && (
+                              <Badge
+                                badgeContent={count}
+                                color="secondary"
+                                sx={{ '& .MuiBadge-badge': { fontSize: '0.75rem' } }}
+                              />
+                            )}
+                          </Box>
+                        }
+                        value={type.id}
+                      />
+                    );
+                  })}
                 </Tabs>
               </Paper>
 

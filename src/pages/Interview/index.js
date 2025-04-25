@@ -381,8 +381,8 @@ const InterviewSimulator = () => {
       const response = await axios.post(
         'https://api.groq.com/openai/v1/audio/speech',
         {
-          model: "playai-tts-v1",
-          voice: "Alex-PlayAI",
+          model: "playai-tts",
+          voice: "Gail-PlayAI",
           input: text,
           speed: 1.1,
           response_format: "mp3"
@@ -670,7 +670,7 @@ const InterviewSimulator = () => {
                 ]
               }
             ],
-            model: "meta-llama/llama-4-scout-17b-16e-instruct"
+            model: "meta-llama/llama-4-maverick-17b-128e-instruct"
           },
           {
             headers: {
@@ -689,7 +689,7 @@ const InterviewSimulator = () => {
                 content: promptContext
               }
             ],
-            model: "meta-llama/llama-4-scout-17b-16e-instruct"
+            model: "gemma2-9b-it"
           },
           {
             headers: {
@@ -743,7 +743,7 @@ const InterviewSimulator = () => {
               content: promptContext
             }
           ],
-          model: "meta-llama/llama-4-scout-17b-16e-instruct"
+          model: "gemma2-9b-it"
         },
         {
           headers: {
@@ -822,6 +822,9 @@ const InterviewSimulator = () => {
         Format your response in two parts separated by ||| as a delimiter:
         1. A personal reaction to their answer (1-2 sentences). Use "I" statements like "I appreciate that perspective" or "I see what you mean" - react as yourself, not as a third-party.
         2. Your next interview question - make it relevant to their response if possible
+        3. Do not mention or say "first part" or "second part" in your response as it will be shown to user.
+
+        Use a warm, conversational tone with contractions, personal pronouns, and natural language.
         
         Make your response sound human and conversational:
         - Use contractions (I'm, you've, that's)
@@ -854,7 +857,7 @@ const InterviewSimulator = () => {
                   ]
                 }
               ],
-              model: "meta-llama/llama-4-scout-17b-16e-instruct"
+              model: "meta-llama/llama-4-maverick-17b-128e-instruct"
             },
             {
               headers: {
@@ -879,7 +882,7 @@ const InterviewSimulator = () => {
                   content: promptContext
                 }
               ],
-              model: "meta-llama/llama-4-scout-17b-16e-instruct"
+              model: "gemma2-9b-it"
             },
             {
               headers: {
@@ -908,7 +911,7 @@ const InterviewSimulator = () => {
                 content: promptContext
               }
             ],
-            model: "meta-llama/llama-4-scout-17b-16e-instruct"
+            model: "meta-llama/llama-4-maverick-17b-128e-instruct"
           },
           {
             headers: {
@@ -992,7 +995,7 @@ const InterviewSimulator = () => {
                         content: promptContext
                       }
                     ],
-                    model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                    model: "meta-llama/llama-4-maverick-17b-128e-instruct",
                     response_format: { type: "json_object" }
                   },
                   {

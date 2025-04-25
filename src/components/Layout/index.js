@@ -123,35 +123,15 @@ const Layout = ({ children }) => {
   // State for sidebar visibility - changed default state
   const [open, setOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [iconMode, setIconMode] = useState(true);  // Set to true by default
-  
-  // Update state when screen size changes
-  // Update the useEffect hooks
-  useEffect(() => {
-    if (isMobile) {
-      setOpen(false);
-      setIconMode(true);
-    } else if (isTablet) {
-      setOpen(false);
-      setIconMode(true);
-    } else {
-      setOpen(false);
-      setIconMode(true);  // Keep sidebar closed by default on desktop
-    }
-  }, [isMobile, isTablet]);
-
+  const [iconMode, setIconMode] = useState(true);
   const location = useLocation();
 
-  // Update state when screen size changes
   useEffect(() => {
-    if (isMobile) {
-      setOpen(false);
-      setIconMode(true);
-    } else if (isTablet) {
+    if (isMobile || isTablet) {
       setOpen(false);
       setIconMode(true);
     } else {
-      setOpen(false);
+      setOpen(true);
       setIconMode(true);
     }
   }, [isMobile, isTablet]);
@@ -180,11 +160,10 @@ const Layout = ({ children }) => {
     }
   };
 
-  // Render a navigation item
+  // Fix renderNavItem to handle Tooltip warning
   const renderNavItem = (item) => {
     const isActive = location.pathname === item.path;
     const showFullSidebar = open && !iconMode;
-    // Always show text in mobile view
     const showText = showFullSidebar || isMobile;
     
     return (
@@ -192,12 +171,7 @@ const Layout = ({ children }) => {
         key={item.text}
         isactive={isActive.toString()}
       >
-        <Tooltip 
-          title={showText ? '' : item.text} 
-          placement="left" 
-          arrow
-          enterDelay={500}
-        >
+        {showText ? (
           <NavLink 
             to={item.path} 
             isopen={showText.toString()} 
@@ -206,22 +180,36 @@ const Layout = ({ children }) => {
             <IconWrapper isactive={isActive.toString()}>
               {item.icon}
             </IconWrapper>
-            
-            {showText && (
-              <Box sx={{ ml: 2, whiteSpace: 'nowrap' }}>
-                <Typography 
-                  variant="body1" 
-                  sx={{ 
-                    fontWeight: isActive ? 600 : 400,
-                    color: isActive ? '#fff' : 'rgba(255, 255, 255, 0.7)',
-                  }}
-                >
-                  {item.text}
-                </Typography>
-              </Box>
-            )}
+            <Box sx={{ ml: 2, whiteSpace: 'nowrap' }}>
+              <Typography 
+                variant="body1" 
+                sx={{ 
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive ? '#fff' : 'rgba(255, 255, 255, 0.7)',
+                }}
+              >
+                {item.text}
+              </Typography>
+            </Box>
           </NavLink>
-        </Tooltip>
+        ) : (
+          <Tooltip 
+            title={item.text} 
+            placement="left" 
+            arrow
+            enterDelay={500}
+          >
+            <NavLink 
+              to={item.path} 
+              isopen={showText.toString()} 
+              onClick={isMobile ? () => setMobileDrawerOpen(false) : undefined}
+            >
+              <IconWrapper isactive={isActive.toString()}>
+                {item.icon}
+              </IconWrapper>
+            </NavLink>
+          </Tooltip>
+        )}
       </NavItem>
     );
   };
@@ -335,7 +323,7 @@ const Layout = ({ children }) => {
     <Box sx={{ 
       display: 'flex',
       flexDirection: 'column',
-      Height: '100%',
+      height: '100%',
       position: 'relative',
       overflow: 'hidden'  // Add this to prevent scrolling issues
     }}>
@@ -347,7 +335,6 @@ const Layout = ({ children }) => {
           flexGrow: 1,
           width: '100%',
           padding: getMainContentPadding(),
-          background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
           backgroundAttachment: 'fixed',
           position: 'relative',  // Add this
           height: '100%',
