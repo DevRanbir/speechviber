@@ -111,7 +111,7 @@ const RecordingIndicator = styled('span')({
 import { useNavigate } from 'react-router-dom';
 
 // Add Firebase imports at the top with the other imports
-import { getDatabase, ref, push } from 'firebase/database';
+import { getDatabase, ref, push, set} from 'firebase/database';
 import { useAuth } from '../../contexts/AuthContext';
 
 const InterviewSimulator = () => {
@@ -320,26 +320,43 @@ const InterviewSimulator = () => {
     if (currentUser) {
       try {
         const database = getDatabase();
-        const interviewData = {
-          time: new Date().toISOString(),
-          averageScore: avgScore,
-          questionScores: evaluationResults.map((result, index) => ({
-            question: questions[index],
-            score: parseInt(result.accuracy) || 0
-          }))
-        };
-
-        const fasttractRef = ref(
-          database, 
-          `users/${currentUser.uid}/fasttractanalysis/${Date.now()}`
-        );
+        const timestamp = Date.now();
         
-        push(fasttractRef, interviewData)
-          .then(() => {
-            console.log('Interview data saved successfully');
-            setDataSaved(true);
+        // Create activity data
+        const activityData = {
+          date: new Date().toISOString(),
+          description: `Completed FastTrack Analysis with score: ${avgScore}%`,
+          duration: "15", // 15 minutes for 4 questions
+          id: `fasttrack_${timestamp}_${avgScore}`,
+          score: avgScore,
+          type: "FastTrack",
+          completed: true
+        };
+    
+        // Save to history/activities
+        const historyRef = ref(
+          database,
+          `users/${currentUser.uid}/history/data/${timestamp}/activities/0`
+        );
+    
+        // Save both activity data and analysis data
+        Promise.all([
+          set(historyRef, activityData),
+          push(ref(database, `users/${currentUser.uid}/fasttractanalysis`), {
+            time: new Date().toISOString(),
+            averageScore: avgScore,
+            questionScores: evaluationResults.map((result, index) => ({
+              question: questions[index],
+              score: parseInt(result.accuracy) || 0
+            }))
           })
-          .catch(error => console.error('Error saving interview data:', error));
+        ])
+        .then(() => {
+          console.log('Interview data saved successfully');
+          setDataSaved(true);
+        })
+        .catch(error => console.error('Error saving interview data:', error));
+    
       } catch (error) {
         console.error('Error saving to database:', error);
       }

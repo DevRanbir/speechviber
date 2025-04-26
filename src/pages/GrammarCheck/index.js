@@ -201,50 +201,66 @@ const GrammarCheck = () => {
   };
 
   const saveActivityData = async (grammarData) => {
-      if (!currentUser || dataSaved) {
-        console.log('Skipping data save:', { 
-          currentUser: !!currentUser,
-          dataSaved
-        });
-        return;
-      }
-    
-      try {
-        const database = getDatabase();
-        const timestamp = Date.now();
-        const formattedDate = new Date(timestamp).toISOString();
-        
-        console.log('Saving grammar check data:', grammarData);
-        
-        // Generate a unique ID similar to grammar-fill format
-        const uniqueId = `-${Math.random().toString(36).substr(2, 9)}`;
-        
-        // Save grammar check data with the new structure
-        const grammarCheckRef = ref(database, `users/${currentUser.uid}/grammar-check/${timestamp}/${uniqueId}`);
-        await set(grammarCheckRef, {
+    if (!currentUser || dataSaved) {
+      console.log('Skipping data save:', { 
+        currentUser: !!currentUser,
+        dataSaved
+      });
+      return;
+    }
+  
+    try {
+      const database = getDatabase();
+      const timestamp = Date.now();
+      
+      // Create activity data in the standard format
+      const activityData = {
+        date: new Date().toISOString(),
+        description: `Completed grammar check with scores - Grammar: ${grammarData.scores.grammar}%, Structure: ${grammarData.scores.structure}%, Punctuation: ${grammarData.scores.punctuation}%`,
+        duration: "10", // Duration in minutes
+        id: `grammar_${timestamp}_${Math.round((parseInt(grammarData.scores.grammar) + parseInt(grammarData.scores.structure) + parseInt(grammarData.scores.punctuation)) / 3)}`,
+        score: Math.round((parseInt(grammarData.scores.grammar) + parseInt(grammarData.scores.structure) + parseInt(grammarData.scores.punctuation)) / 3),
+        type: "Grammar Check",
+        completed: true
+      };
+  
+      // Save to history/activities path
+      const historyRef = ref(
+        database,
+        `users/${currentUser.uid}/history/data/${timestamp}/activities/0`
+      );
+  
+      // Save both activity data and detailed grammar check data
+      Promise.all([
+        set(historyRef, activityData),
+        set(ref(database, `users/${currentUser.uid}/grammar-check/${timestamp}`), {
           accuracy: Math.round((parseInt(grammarData.scores.grammar) + parseInt(grammarData.scores.structure) + parseInt(grammarData.scores.punctuation)) / 3),
-          correctCount: 1,
-          difficulty: 'medium',
-          incorrectCount: 0,
-          score: Math.round((parseInt(grammarData.scores.grammar) + parseInt(grammarData.scores.structure) + parseInt(grammarData.scores.punctuation)) / 3),
-          time: formattedDate,
           originalText: grammarData.originalText,
           correctedText: grammarData.correctedText,
           grammarScore: parseInt(grammarData.scores.grammar) || 0,
           structureScore: parseInt(grammarData.scores.structure) || 0,
           punctuationScore: parseInt(grammarData.scores.punctuation) || 0,
+          time: new Date().toISOString(),
           timestamp: timestamp
-        });
-    
+        })
+      ])
+      .then(() => {
         console.log('Grammar check data saved successfully');
         setDataSaved(true);
         setSaveError(null);
-      } catch (error) {
+      })
+      .catch(error => {
         console.error('Error saving to database:', error);
         setSaveError('Failed to save your progress. Please try again.');
         showSnackbar('Error saving check data', 'error');
-      }
-    };
+      });
+  
+    } catch (error) {
+      console.error('Error saving to database:', error);
+      setSaveError('Failed to save your progress. Please try again.');
+      showSnackbar('Error saving check data', 'error');
+    }
+  };
 
   const checkGrammar = async () => {
     if (!text.trim()) {

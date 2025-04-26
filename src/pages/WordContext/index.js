@@ -16,7 +16,10 @@ import {
   Switch,
   FormControl,
   FormGroup,
-  Tooltip
+  Tooltip,
+  Container,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import { motion } from 'framer-motion';
 import TimerIcon from '@mui/icons-material/Timer';
@@ -24,9 +27,13 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import InfoIcon from '@mui/icons-material/Info';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import IconButton from '@mui/material/IconButton';
+
 import { getDatabase, ref, push, set } from 'firebase/database';
 import { useAuth } from '../../contexts/AuthContext';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
+
 const API_KEY = "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";
 const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -34,6 +41,9 @@ const WordContext = () => {
   useErrorBoundary();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
   const [gameStarted, setGameStarted] = useState(false);
   const [showSettings, setShowSettings] = useState(true);
   const [question, setQuestion] = useState(null);
@@ -43,9 +53,9 @@ const WordContext = () => {
   const [isCorrect, setIsCorrect] = useState(false);
   
   // Game settings
-  const [difficulty, setDifficulty] = useState('medium'); // 'easy', 'medium', or 'hard'
+  const [difficulty, setDifficulty] = useState('medium');
   const [timerEnabled, setTimerEnabled] = useState(false);
-  const [timeLimit, setTimeLimit] = useState(15); // seconds
+  const [timeLimit, setTimeLimit] = useState(15);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const timerRef = useRef(null);
   
@@ -57,18 +67,41 @@ const WordContext = () => {
   const [accuracy, setAccuracy] = useState(100);
   const [dataSaved, setDataSaved] = useState(false);
 
+
+  const updateAccuracy = (correct, incorrect) => {
+    const total = correct + incorrect;
+    const newAccuracy = total > 0 ? Math.min(Math.round((correct / total) * 100), 100) : 100;
+    setAccuracy(newAccuracy);
+  };
+
+  const speakText = (text) => {
+    if ('speechSynthesis' in window) {
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9; // Slightly slower for better clarity
+      utterance.pitch = 1;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
   // Error handling state
   const [error, setError] = useState(null);
 
   // Generate a question
-  // In the generateQuestion function, update the prompt and response handling
+  // Add this after the state declarations
+  const [usedWords, setUsedWords] = useState(new Set());
+  
+  // Modify the generateQuestion function
   const generateQuestion = async () => {
     setLoading(true);
     setQuestion(null);
     setSelectedAnswer('');
     setShowResult(false);
     setError(null);
-
+  
     let difficultyPrompt = '';
     if (difficulty === 'easy') {
       difficultyPrompt = 'common words suitable for elementary to middle school students';
@@ -77,41 +110,40 @@ const WordContext = () => {
     } else {
       difficultyPrompt = 'advanced vocabulary words suitable for college students or professionals';
     }
-
-    try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "gemma2-9b-it",
-          messages: [{
-            role: "user",
-            content: `Generate a "word in context" question with randomly distributed correct and incorrect answers. Choose ${difficultyPrompt}. Format exactly as follows:
-              Word: [single word]
-              Definition: [brief definition of the word]
-              Sentences:
-              1. [sentence using the word]
-              2. [sentence using the word]
-              3. [sentence using the word]
-              4. [sentence using the word]
-              Correct Answer(s): [randomly select from 1-4]
-              Explanation:
-              Sentence 1: [explain if correct or incorrect and why, without using asterisks or bold formatting]
-              Sentence 2: [explain if correct or incorrect and why, without using asterisks or bold formatting]
-              Sentence 3: [explain if correct or incorrect and why, without using asterisks or bold formatting]
-              Sentence 4: [explain if correct or incorrect and why, without using asterisks or bold formatting]
-            
-            Important:
-            - Do not use asterisks (*) or bold formatting in any part of the response
-            - Randomize which sentences are correct/incorrect (don't follow a pattern)
-            - Ensure explanations are clear without relying on formatting
-            - Always include exactly 2 correct and 2 incorrect uses of the word`
-          }]
-        })
-      });
+  
+  // Add this to the prompt
+  const excludeWords = Array.from(usedWords).join(', ');
+  const promptWithExclusion = `Generate a "word in context" question with exactly a correct and an incorrect sentence. Choose ${difficultyPrompt}. The word must NOT be any of these previously used words: ${excludeWords}. Format exactly as follows:
+    Word: [single word]
+    Definition: [brief definition of the word]
+    Sentences:
+    1. [sentence using the word]
+    2. [sentence using the word]
+    Correct Answer: [specify 1 or 2]
+    Explanation: [explain why the correct answer is correct and why the incorrect answer is incorrect]
+  
+  Important:
+  - Both the options have 50-50 probability of being correct
+  - Choose a completely new word not in the exclusion list 
+  - Randomize which sentence is correct
+  - Ensure explanations are clear
+  - Always include exactly 1 correct and 1 incorrect use of the word`;
+  
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "gemma2-9b-it",
+        messages: [{
+          role: "user",
+          content: promptWithExclusion
+        }]
+      })
+    });
 
       const data = await response.json();
       
@@ -124,7 +156,7 @@ const WordContext = () => {
       }
       
       const responseText = data.choices[0].message.content;
-      console.log("API Response:", responseText); // For debugging
+      console.log("API Response:", responseText);
       
       try {
         // Extract sections
@@ -145,72 +177,75 @@ const WordContext = () => {
         // Get Sentences
         const sentences = [];
         if (responseText.includes('Sentences:')) {
-          const sentencesSection = responseText.split('Sentences:')[1].split('Correct Answer(s):')[0];
+          const sentencesSection = responseText.split('Sentences:')[1].split('Correct Answer:')[0];
           const sentenceLines = sentencesSection.split('\n')
             .filter(line => line.trim())
             .map(line => {
-              // Remove number and dot from the beginning (e.g., "1. " or "1.")
-              return line.replace(/^\d+\.?\s*/, '').trim();
+              // Remove any numbering and extra spaces/periods
+              return line.replace(/^\d+\.?\s*|\d+\.\s*/g, '').trim();
             })
-            .filter(line => line); // Remove empty lines
+            .filter(line => line && !line.startsWith('Sentences'));
           
-          sentences.push(...sentenceLines);
+          // Only take unique sentences
+          sentences.push(...new Set(sentenceLines));
         }
+        
+        // Ensure we have exactly 2 unique sentences
+        if (sentences.length !== 2) {
+          throw new Error('Invalid number of sentences received');
+        }
+        
         sections.sentences = sentences;
         
-        // Get Correct Answers
-        if (responseText.includes('Correct Answer(s):')) {
+        // Get Correct Answer
+        if (responseText.includes('Correct Answer:')) {
           try {
-            const afterCorrect = responseText.split('Correct Answer(s):')[1].split('\n')[0].trim();
-            let correctAnswers = afterCorrect
-              .split(',')
-              .map(num => parseInt(num.trim()) - 1) // Convert 1-4 to 0-3
-              .filter(num => num >= 0 && num <= 3);
-            
-            // Ensure we have 1-2 answers only
-            if (correctAnswers.length > 2) {
-              correctAnswers = correctAnswers.slice(0, 2);
-            } else if (correctAnswers.length === 0) {
-              correctAnswers = [Math.floor(Math.random() * 4)];
+            const afterCorrect = responseText.split('Correct Answer:')[1].split('\n')[0].trim();
+            const correctAnswer = parseInt(afterCorrect.match(/\d+/)[0]) - 1; // Extract only the number
+            if (!isNaN(correctAnswer) && correctAnswer >= 0 && correctAnswer <= 1) {
+              sections.correctAnswer = correctAnswer;
+            } else {
+              throw new Error('Invalid correct answer format');
             }
-            sections.correctAnswers = correctAnswers;
           } catch (e) {
-            sections.correctAnswers = [Math.floor(Math.random() * 4)];
+            throw new Error('Failed to parse correct answer');
           }
         }
         
         // Get Explanation
         if (responseText.includes('Explanation:')) {
           const explanationSection = responseText.split('Explanation:')[1].trim();
-          const explanationLines = explanationSection.split('\n')
-            .filter(line => line.trim())
-            .map(line => line.trim())
-            .join('\n\n');
-          sections.explanation = explanationLines;
+          sections.explanation = explanationSection;
         }
         
-        console.log("Parsed sections:", sections); // For debugging
+        console.log("Parsed sections:", sections);
         
         // Validate parsed content
-        if (!sections.word || !sections.definition || sections.sentences.length < 2 || !sections.correctAnswers || !sections.explanation) {
+        if (!sections.word || !sections.definition || sections.sentences.length < 2 || sections.correctAnswer === undefined || !sections.explanation) {
           throw new Error('Failed to parse response correctly');
         }
         
-        // Ensure we have at least 4 sentences
-        while (sections.sentences.length < 4) {
+        // Ensure we have exactly 2 sentences
+        while (sections.sentences.length < 2) {
           sections.sentences.push(`Example sentence ${sections.sentences.length + 1} for ${sections.word}.`);
         }
-        
-        // Ensure correct answers is an array even if only one value
-        if (!Array.isArray(sections.correctAnswers)) {
-          sections.correctAnswers = [sections.correctAnswers];
+        if (sections.sentences.length > 2) {
+          sections.sentences = sections.sentences.slice(0, 2);
         }
         
+        // Add this after successfully parsing the response and before setting the question
+        if (sections.word) {
+          if (usedWords.has(sections.word.toLowerCase())) {
+            throw new Error('Received a repeated word, generating new question');
+          }
+          setUsedWords(prev => new Set([...prev, sections.word.toLowerCase()]));
+        }
+
         setQuestion({
           word: sections.word,
           definition: sections.definition,
           sentences: sections.sentences,
-          correctAnswers: sections.correctAnswers,
+          correctAnswer: sections.correctAnswer,
           explanation: sections.explanation
         });
         
@@ -243,7 +278,6 @@ const WordContext = () => {
       setTimeRemaining(prev => {
         if (prev <= 1) {
           clearInterval(timerRef.current);
-          // Time's up - mark as incorrect if no answer selected
           if (!showResult) {
             handleTimeUp();
           }
@@ -262,14 +296,8 @@ const WordContext = () => {
     setIsCorrect(false);
     setShowResult(true);
     setIncorrectCount(prev => prev + 1);
+    setScore(prev => Math.max(0, prev - 8)); 
     updateAccuracy(correctCount, incorrectCount + 1);
-  };
-
-  // Update accuracy percentage
-  const updateAccuracy = (correct, incorrect) => {
-    const total = correct + incorrect;
-    const newAccuracy = total > 0 ? Math.round((correct / total) * 100) : 100;
-    setAccuracy(newAccuracy);
   };
 
   // Save game data to Firebase
@@ -283,7 +311,7 @@ const WordContext = () => {
         const activityData = {
           date: new Date().toISOString(),
           description: `Completed a word context game with score: ${score}`,
-          duration: "10 minutes", // You can modify this based on actual game duration
+          duration: "10 minutes",
           id: `wordcontext_${new Date().toISOString()}_${score}`,
           score: score,
           type: "Word Context"
@@ -301,7 +329,6 @@ const WordContext = () => {
           `users/${currentUser.uid}/word-context/${timestamp}`
         );
     
-        // Save both activity and game data
         Promise.all([
           set(historyRef, activityData),
           push(wordContextRef, {
@@ -329,43 +356,41 @@ const WordContext = () => {
   // Handle answer submission
   const handleAnswerSubmit = () => {
     stopTimer();
-    const correct = question.correctAnswers.includes(parseInt(selectedAnswer));
+    const correct = parseInt(selectedAnswer) === question.correctAnswer;
     setIsCorrect(correct);
     setShowResult(true);
     
-    // Update score and stats
+    const newCorrectCount = correct ? correctCount + 1 : correctCount;
+    const newIncorrectCount = correct ? incorrectCount : incorrectCount + 1;
+    
     if (correct) {
-      setCorrectCount(prev => prev + 1);
+      setCorrectCount(newCorrectCount);
       const pointsEarned = timerEnabled ? Math.ceil(timeRemaining * 10 / timeLimit) * 10 : 10;
       setScore(prev => prev + pointsEarned);
     } else {
-      setIncorrectCount(prev => prev + 1);
+      setIncorrectCount(newIncorrectCount);
+      setScore(prev => Math.max(0, prev - 10)); // Decrease score by 10, but not below 0
     }
     
-    // Update accuracy
-    updateAccuracy(
-      correct ? correctCount + 1 : correctCount,
-      correct ? incorrectCount : incorrectCount + 1
-    );
+    updateAccuracy(newCorrectCount, newIncorrectCount);
   };
 
   // Start the game
   const startGame = () => {
     setGameStarted(true);
     setShowSettings(false);
-    // Reset score and stats
     setScore(0);
     setQuestionCount(0);
     setCorrectCount(0);
     setIncorrectCount(0);
     setAccuracy(100);
     setDataSaved(false);
+    setUsedWords(new Set()); // Reset used words
     generateQuestion();
   };
 
   // Go to settings
   const goToSettings = () => {
-    // Save data before changing settings if game was in progress
     if (questionCount > 0) {
       saveGameData();
     }
@@ -400,50 +425,30 @@ const WordContext = () => {
   }, []);
 
   return (
-    <Box sx={{ 
-      p: { xs: 2, sm: 3 }
-    }}>
-      <Box sx={{ maxWidth: '1000px', mx: 'auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          mb: 2
+    <Container maxWidth="md" sx={{ py: { xs: 2, md: 4 } }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        mb: 3,
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: isMobile ? 2 : 0
+      }}>
+        <Typography variant="h4" sx={{ 
+          background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          fontWeight: 'bold',
+          fontSize: { xs: '1.75rem', sm: '2.25rem' }
         }}>
-          <Typography variant="h4" sx={{ 
-            background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            fontWeight: 'bold'
-          }}>
-            Word in Context Challenge
-          </Typography>
-          
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            {gameStarted && (
-              <Button
-                variant="outlined"
-                onClick={goToSettings}
-                sx={{
-                  borderColor: 'rgba(124, 58, 237, 0.4)',
-                  color: '#A78BFA',
-                  '&:hover': {
-                    borderColor: '#7C3AED',
-                    background: 'rgba(124, 58, 237, 0.1)',
-                  }
-                }}
-              >
-                Game Settings
-              </Button>
-            )}
+          Word in Context
+        </Typography>
+        
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          {gameStarted && (
             <Button
               variant="outlined"
-              onClick={() => {
-                if (questionCount > 0) {
-                  saveGameData();
-                }
-                navigate('/practice');
-              }}
+              onClick={goToSettings}
               sx={{
                 borderColor: 'rgba(124, 58, 237, 0.4)',
                 color: '#A78BFA',
@@ -453,509 +458,569 @@ const WordContext = () => {
                 }
               }}
             >
-              Go Back
+              Settings
             </Button>
-          </Box>
+          )}
+          <Button
+            variant="outlined"
+            onClick={() => {
+              if (questionCount > 0) {
+                saveGameData();
+              }
+              navigate('/practice');
+            }}
+            sx={{
+              borderColor: 'rgba(124, 58, 237, 0.4)',
+              color: '#A78BFA',
+              '&:hover': {
+                borderColor: '#7C3AED',
+                background: 'rgba(124, 58, 237, 0.1)',
+              }
+            }}
+          >
+            Back
+          </Button>
         </Box>
+      </Box>
 
-        {/* Score display when game has started */}
-        {gameStarted && (
-          <Paper sx={{
-            p: 2,
-            mb: 2,
-            background: 'rgba(30, 41, 59, 0.4)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(124, 58, 237, 0.1)',
-          }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={4} sm={3}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <EmojiEventsIcon sx={{ color: '#FFD700' }} />
-                  <Typography variant="h6" sx={{ color: '#A78BFA' }}>
-                    Score: {score}
+      {/* Score display when game has started */}
+      {gameStarted && (
+        <Paper sx={{
+          p: 2,
+          mb: 3,
+          background: 'rgba(30, 41, 59, 0.4)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(124, 58, 237, 0.1)',
+        }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={6} sm={3}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <EmojiEventsIcon sx={{ color: '#FFD700' }} />
+                <Typography sx={{ color: '#A78BFA', fontWeight: 'bold' }}>
+                  Score: {score}
+                </Typography>
+              </Box>
+            </Grid>
+            
+            <Grid item xs={6} sm={3}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CheckCircleIcon sx={{ color: '#4ade80', fontSize: 20 }} />
+                <Typography sx={{ color: '#A78BFA' }}>
+                  Correct: {correctCount}
+                </Typography>
+              </Box>
+            </Grid>
+            
+            <Grid item xs={6} sm={3}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CancelIcon sx={{ color: '#f87171', fontSize: 20 }} />
+                <Typography sx={{ color: '#A78BFA' }}>
+                  Wrong: {incorrectCount}
+                </Typography>
+              </Box>
+            </Grid>
+            
+            <Grid item xs={6} sm={3}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography sx={{ color: '#A78BFA' }}>
+                  Accuracy:
+                </Typography>
+                <Chip 
+                  label={`${accuracy}%`} 
+                  size="small"
+                  sx={{ 
+                    backgroundColor: 
+                      accuracy > 80 ? 'rgba(34, 197, 94, 0.2)' :
+                      accuracy > 50 ? 'rgba(250, 204, 21, 0.2)' : 
+                      'rgba(239, 68, 68, 0.2)',
+                    color: 
+                      accuracy > 80 ? '#4ade80' :
+                      accuracy > 50 ? '#fbbf24' : 
+                      '#f87171'
+                  }}
+                />
+              </Box>
+            </Grid>
+          </Grid>
+        </Paper>
+      )}
+
+      {showSettings ? (
+        <Paper sx={{
+          p: { xs: 2, sm: 4 },
+          background: 'rgba(30, 41, 59, 0.4)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(124, 58, 237, 0.1)',
+          textAlign: 'center'
+        }}>
+          <Typography variant="h5" sx={{ color: '#A78BFA', mb: 3 }}>
+            Game Settings
+          </Typography>
+          
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="subtitle1" sx={{ color: '#A78BFA', mb: 2, textAlign: 'left' }}>
+              Difficulty Level:
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={4}>
+                <Paper 
+                  sx={{ 
+                    p: 2, 
+                    background: difficulty === 'easy' ? 'rgba(124, 58, 237, 0.2)' : 'rgba(30, 41, 59, 0.6)',
+                    border: '1px solid',
+                    borderColor: difficulty === 'easy' ? 'rgba(124, 58, 237, 0.5)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      background: 'rgba(124, 58, 237, 0.1)',
+                    }
+                  }}
+                  onClick={() => setDifficulty('easy')}
+                >
+                  <Typography sx={{ color: '#A78BFA' }}>Easy</Typography>
+                  <Typography sx={{ color: 'white', fontSize: '0.9rem' }}>
+                    Common words for elementary to middle school
                   </Typography>
-                </Box>
+                </Paper>
               </Grid>
-              
-              <Grid item xs={4} sm={3}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CheckCircleIcon sx={{ color: '#4ade80', fontSize: 20 }} />
-                  <Typography sx={{ color: '#A78BFA' }}>
-                    Correct: {correctCount}
+              <Grid item xs={12} sm={4}>
+                <Paper 
+                  sx={{ 
+                    p: 2, 
+                    background: difficulty === 'medium' ? 'rgba(124, 58, 237, 0.2)' : 'rgba(30, 41, 59, 0.6)',
+                    border: '1px solid',
+                    borderColor: difficulty === 'medium' ? 'rgba(124, 58, 237, 0.5)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      background: 'rgba(124, 58, 237, 0.1)',
+                    }
+                  }}
+                  onClick={() => setDifficulty('medium')}
+                >
+                  <Typography sx={{ color: '#A78BFA' }}>Medium</Typography>
+                  <Typography sx={{ color: 'white', fontSize: '0.9rem' }}>
+                    Moderate difficulty for high school students
                   </Typography>
-                </Box>
+                </Paper>
               </Grid>
-              
-              <Grid item xs={4} sm={3}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CancelIcon sx={{ color: '#f87171', fontSize: 20 }} />
-                  <Typography sx={{ color: '#A78BFA' }}>
-                    Wrong: {incorrectCount}
+              <Grid item xs={12} sm={4}>
+                <Paper 
+                  sx={{ 
+                    p: 2, 
+                    background: difficulty === 'hard' ? 'rgba(124, 58, 237, 0.2)' : 'rgba(30, 41, 59, 0.6)',
+                    border: '1px solid',
+                    borderColor: difficulty === 'hard' ? 'rgba(124, 58, 237, 0.5)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      background: 'rgba(124, 58, 237, 0.1)',
+                    }
+                  }}
+                  onClick={() => setDifficulty('hard')}
+                >
+                  <Typography sx={{ color: '#A78BFA' }}>Hard</Typography>
+                  <Typography sx={{ color: 'white', fontSize: '0.9rem' }}>
+                    Advanced vocabulary for college and professionals
                   </Typography>
-                </Box>
+                </Paper>
               </Grid>
-              
-              <Grid item xs={12} sm={3}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: { xs: 'center', sm: 'flex-start' } }}>
-                  <Typography sx={{ color: '#A78BFA' }}>
-                    Accuracy:
-                  </Typography>
-                  <Chip 
-                    label={`${accuracy}%`} 
-                    size="small"
-                    sx={{ 
-                      backgroundColor: 
-                        accuracy > 80 ? 'rgba(34, 197, 94, 0.2)' :
-                        accuracy > 50 ? 'rgba(250, 204, 21, 0.2)' : 
-                        'rgba(239, 68, 68, 0.2)',
-                      color: 
-                        accuracy > 80 ? '#4ade80' :
-                        accuracy > 50 ? '#fbbf24' : 
-                        '#f87171'
+            </Grid>
+          </Box>
+          
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="subtitle1" sx={{ color: '#A78BFA', mb: 2, textAlign: 'left', display: 'flex', alignItems: 'center' }}>
+              Time Limit
+              <Tooltip title="Enabling time limit adds pressure and earns you more points for faster answers!" arrow>
+                <InfoIcon sx={{ fontSize: 18, ml: 1, color: '#A78BFA' }} />
+              </Tooltip>
+            </Typography>
+            
+            <FormControl component="fieldset" sx={{ width: '100%' }}>
+              <FormGroup>
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  p: 2,
+                  background: 'rgba(30, 41, 59, 0.6)',
+                  borderRadius: 1,
+                  mb: 2
+                }}>
+                  <Typography sx={{ color: 'white' }}>Enable Time Limit</Typography>
+                  <Switch 
+                    checked={timerEnabled}
+                    onChange={(e) => setTimerEnabled(e.target.checked)}
+                    sx={{
+                      '& .MuiSwitch-switchBase.Mui-checked': {
+                        color: '#7C3AED',
+                      },
+                      '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                        backgroundColor: '#7C3AED',
+                      },
                     }}
                   />
                 </Box>
-              </Grid>
-            </Grid>
-          </Paper>
-        )}
-
-        <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-          {showSettings ? (
+              </FormGroup>
+            </FormControl>
+            
+            {timerEnabled && (
+              <Box sx={{ p: 2, background: 'rgba(30, 41, 59, 0.6)', borderRadius: 1 }}>
+                <Typography sx={{ color: 'white', mb: 2 }}>
+                  Time per question: {timeLimit} seconds
+                </Typography>
+                <Grid container spacing={1}>
+                  {[5, 10, 15, 20, 30].map((time) => (
+                    <Grid item xs={isMobile ? 4 : 'auto'} key={time}>
+                      <Button
+                        variant={timeLimit === time ? "contained" : "outlined"}
+                        onClick={() => setTimeLimit(time)}
+                        fullWidth={isMobile}
+                        sx={{
+                          background: timeLimit === time ? 'linear-gradient(45deg, #7C3AED, #3B82F6)' : 'transparent',
+                          borderColor: 'rgba(124, 58, 237, 0.3)',
+                          color: timeLimit === time ? 'white' : '#A78BFA',
+                          '&:hover': {
+                            borderColor: '#7C3AED',
+                            background: timeLimit === time ? 'linear-gradient(45deg, #7C3AED, #3B82F6)' : 'rgba(124, 58, 237, 0.1)',
+                          }
+                        }}
+                      >
+                        {time}s
+                      </Button>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            )}
+          </Box>
+          
+          <Button
+            variant="contained"
+            onClick={startGame}
+            sx={{
+              background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
+              py: 1.5,
+              px: 6,
+              fontSize: '1.1rem'
+            }}
+          >
+            Start Game
+          </Button>
+        </Paper>
+      ) : (
+        <>
+          {loading ? (
+            <Paper sx={{
+              p: 4,
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              flexDirection: 'column',
+              height: '300px',
+              background: 'rgba(30, 41, 59, 0.4)',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(124, 58, 237, 0.1)',
+            }}>
+              <CircularProgress sx={{ 
+                color: '#A78BFA',
+                '& .MuiCircularProgress-circle': {
+                  strokeLinecap: 'round',
+                },
+                mb: 2
+              }} />
+              <Typography sx={{ color: '#A78BFA' }}>
+                Generating question...
+              </Typography>
+            </Paper>
+          ) : error ? (
             <Paper sx={{
               p: 4,
               background: 'rgba(30, 41, 59, 0.4)',
               backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(124, 58, 237, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
               textAlign: 'center'
             }}>
-              <Typography variant="h5" sx={{ color: '#A78BFA', mb: 3 }}>
-                Game Settings
+              <Typography variant="h6" sx={{ color: '#f87171', mb: 2 }}>
+                Error Loading Question, its AI, thats so great  
               </Typography>
-              
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="subtitle1" sx={{ color: '#A78BFA', mb: 2, textAlign: 'left' }}>
-                  Difficulty Level:
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={4}>
-                    <Paper 
-                      sx={{ 
-                        p: 2, 
-                        background: difficulty === 'easy' ? 'rgba(124, 58, 237, 0.2)' : 'rgba(30, 41, 59, 0.6)',
-                        border: '1px solid',
-                        borderColor: difficulty === 'easy' ? 'rgba(124, 58, 237, 0.5)' : 'transparent',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                          background: 'rgba(124, 58, 237, 0.1)',
-                        }
-                      }}
-                      onClick={() => setDifficulty('easy')}
-                    >
-                      <Typography sx={{ color: '#A78BFA' }}>Easy</Typography>
-                      <Typography sx={{ color: 'white', fontSize: '0.9rem' }}>
-                        Common words for elementary to middle school
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={4}>
-                    <Paper 
-                      sx={{ 
-                        p: 2, 
-                        background: difficulty === 'medium' ? 'rgba(124, 58, 237, 0.2)' : 'rgba(30, 41, 59, 0.6)',
-                        border: '1px solid',
-                        borderColor: difficulty === 'medium' ? 'rgba(124, 58, 237, 0.5)' : 'transparent',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                          background: 'rgba(124, 58, 237, 0.1)',
-                        }
-                      }}
-                      onClick={() => setDifficulty('medium')}
-                    >
-                      <Typography sx={{ color: '#A78BFA' }}>Medium</Typography>
-                      <Typography sx={{ color: 'white', fontSize: '0.9rem' }}>
-                        Moderate difficulty for high school students
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={4}>
-                    <Paper 
-                      sx={{ 
-                        p: 2, 
-                        background: difficulty === 'hard' ? 'rgba(124, 58, 237, 0.2)' : 'rgba(30, 41, 59, 0.6)',
-                        border: '1px solid',
-                        borderColor: difficulty === 'hard' ? 'rgba(124, 58, 237, 0.5)' : 'transparent',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                          background: 'rgba(124, 58, 237, 0.1)',
-                        }
-                      }}
-                      onClick={() => setDifficulty('hard')}
-                    >
-                      <Typography sx={{ color: '#A78BFA' }}>Hard</Typography>
-                      <Typography sx={{ color: 'white', fontSize: '0.9rem' }}>
-                        Advanced vocabulary for college and professionals
-                      </Typography>
-                    </Paper>
-                  </Grid>
-                </Grid>
-              </Box>
-              
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="subtitle1" sx={{ color: '#A78BFA', mb: 2, textAlign: 'left', display: 'flex', alignItems: 'center' }}>
-                  Time Limit
-                  <Tooltip title="Enabling time limit adds pressure and earns you more points for faster answers!" arrow>
-                    <InfoIcon sx={{ fontSize: 18, ml: 1, color: '#A78BFA' }} />
-                  </Tooltip>
-                </Typography>
-                
-                <FormControl component="fieldset" sx={{ width: '100%' }}>
-                  <FormGroup>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      p: 2,
-                      background: 'rgba(30, 41, 59, 0.6)',
-                      borderRadius: 1,
-                      mb: 2
-                    }}>
-                      <Typography sx={{ color: 'white' }}>Enable Time Limit</Typography>
-                      <Switch 
-                        checked={timerEnabled}
-                        onChange={(e) => setTimerEnabled(e.target.checked)}
-                        sx={{
-                          '& .MuiSwitch-switchBase.Mui-checked': {
-                            color: '#7C3AED',
-                          },
-                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                            backgroundColor: '#7C3AED',
-                          },
-                        }}
-                      />
-                    </Box>
-                  </FormGroup>
-                </FormControl>
-                
-                {timerEnabled && (
-                  <Box sx={{ p: 2, background: 'rgba(30, 41, 59, 0.6)', borderRadius: 1 }}>
-                    <Typography sx={{ color: 'white', mb: 2 }}>
-                      Time per question: {timeLimit} seconds
-                    </Typography>
-                    <Box
-                      sx={{
-                        width: '100%',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: 2
-                      }}
-                    >
-                      {[5, 10, 15, 20, 30].map((time) => (
-                        <Button
-                          key={time}
-                          variant={timeLimit === time ? "contained" : "outlined"}
-                          onClick={() => setTimeLimit(time)}
-                          sx={{
-                            flex: 1,
-                            background: timeLimit === time ? 'linear-gradient(45deg, #7C3AED, #3B82F6)' : 'transparent',
-                            borderColor: 'rgba(124, 58, 237, 0.3)',
-                            color: timeLimit === time ? 'white' : '#A78BFA',
-                            '&:hover': {
-                              borderColor: '#7C3AED',
-                              background: timeLimit === time ? 'linear-gradient(45deg, #7C3AED, #3B82F6)' : 'rgba(124, 58, 237, 0.1)',
-                            }
-                          }}
-                        >
-                          {time}s
-                        </Button>
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-              </Box>
-              
+              <Typography sx={{ color: 'white', mb: 3 }}>
+                {error}
+              </Typography>
               <Button
                 variant="contained"
-                onClick={startGame}
+                onClick={retryQuestion}
                 sx={{
                   background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
-                  py: 1.5,
-                  px: 6,
-                  fontSize: '1.1rem'
                 }}
               >
-                Start Game
+                Try Again
               </Button>
             </Paper>
           ) : (
             <>
-              {loading ? (
-                <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center', 
-                  flexDirection: 'column',
-                  height: '300px' 
-                }}>
-                  <CircularProgress sx={{ 
-                    color: '#A78BFA',
-                    '& .MuiCircularProgress-circle': {
-                      strokeLinecap: 'round',
-                    },
+              {question && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                >
+                  <Paper sx={{
+                    p: { xs: 2, sm: 3 },
+                    background: 'rgba(30, 41, 59, 0.4)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(124, 58, 237, 0.1)',
                     mb: 2
-                  }} />
-                  <Typography sx={{ color: '#A78BFA' }}>
-                    Generating question...
-                  </Typography>
-                </Box>
-              ) : error ? (
-                <Paper sx={{
-                  p: 4,
-                  background: 'rgba(30, 41, 59, 0.4)',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  textAlign: 'center'
-                }}>
-                  <Typography variant="h6" sx={{ color: '#f87171', mb: 2 }}>
-                    Error Loading Question
-                  </Typography>
-                  <Typography sx={{ color: 'white', mb: 3 }}>
-                    {error}
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    onClick={retryQuestion}
-                    sx={{
-                      background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
-                    }}
-                  >
-                    Try Again
-                  </Button>
-                </Paper>
-              ) : (
-                <>
-                  {question && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5 }}
-                    >
-                      <Paper sx={{
-                        p: 3,
-                        background: 'rgba(30, 41, 59, 0.4)',
-                        backdropFilter: 'blur(10px)',
-                        border: '1px solid rgba(124, 58, 237, 0.1)',
-                        mb: 2
+                  }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      mb: 2,
+                      flexDirection: isMobile ? 'column' : 'row',
+                      gap: isMobile ? 1 : 0
+                    }}>
+                      <Typography variant="h6" sx={{ color: '#A78BFA' }}>
+                        Word in Context
+                      </Typography>
+                      
+                      <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 2,
+                        width: isMobile ? '100%' : 'auto',
+                        justifyContent: isMobile ? 'space-between' : 'flex-end'
                       }}>
-                        <Box sx={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center', 
-                          mb: 2 
-                        }}>
-                          <Typography variant="h6" sx={{ color: '#A78BFA' }}>
-                            Word in Context
-                          </Typography>
-                          
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            {timerEnabled && !showResult && (
-                              <Box sx={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                px: 2,
-                                py: 0.5,
-                                borderRadius: 1,
-                                background: timeRemaining < 3 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(124, 58, 237, 0.2)',
-                              }}>
-                                <TimerIcon sx={{ 
-                                  color: timeRemaining < 3 ? '#f87171' : '#A78BFA',
-                                  mr: 1,
-                                  fontSize: 20
-                                }} />
-                                <Typography sx={{ 
-                                  color: timeRemaining < 3 ? '#f87171' : '#A78BFA',
-                                  fontWeight: 'bold',
-                                  animation: timeRemaining < 3 ? 'pulse 1s infinite' : 'none',
-                                  '@keyframes pulse': {
-                                    '0%': { opacity: 1 },
-                                    '50%': { opacity: 0.5 },
-                                    '100%': { opacity: 1 },
-                                  }
-                                }}>
-                                  {timeRemaining}s
-                                </Typography>
-                              </Box>
-                            )}
-                            
-                            <Chip 
-                              label={`Question ${questionCount}`} 
-                              size="small"
-                              sx={{ 
-                                backgroundColor: 'rgba(124, 58, 237, 0.2)',
-                                color: 'white'
-                              }}
-                            />
-                          </Box>
-                        </Box>
-                        
-                        <Divider sx={{ borderColor: 'rgba(124, 58, 237, 0.2)', mb: 2 }} />
-                        
-                        <Box sx={{ mb: 3, p: 2, background: 'rgba(15, 23, 42, 0.5)', borderRadius: 1 }}>
-                          <Typography 
-                            variant="h5" 
-                            sx={{ 
-                              color: '#A78BFA', 
-                              mb: 1,
-                              fontWeight: 'bold'
-                            }}
-                          >
-                            {question.word}
-                          </Typography>
-                          <Typography variant="body1" sx={{ color: 'white' }}>
-                            <strong>Definition:</strong> {question.definition}
-                          </Typography>
-                        </Box>
-                        
-                        <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
-                          Which sentence uses this word correctly?
-                        </Typography>
-
-                        <RadioGroup
-                          value={selectedAnswer}
-                          onChange={(e) => setSelectedAnswer(e.target.value)}
-                        >
-                          {question.sentences.map((sentence, index) => (
-                            <FormControlLabel
-                              key={index}
-                              value={index.toString()}
-                              disabled={showResult}
-                              control={
-                                <Radio 
-                                  sx={{ 
-                                    color: '#A78BFA',
-                                    '&.Mui-checked': {
-                                      color: '#7C3AED',
-                                    },
-                                  }}
-                                />
+                        {timerEnabled && !showResult && (
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            px: 2,
+                            py: 0.5,
+                            borderRadius: 1,
+                            background: timeRemaining < 3 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(124, 58, 237, 0.2)',
+                          }}>
+                            <TimerIcon sx={{ 
+                              color: timeRemaining < 3 ? '#f87171' : '#A78BFA',
+                              mr: 1,
+                              fontSize: 20
+                            }} />
+                            <Typography sx={{ 
+                              color: timeRemaining < 3 ? '#f87171' : '#A78BFA',
+                              fontWeight: 'bold',
+                              animation: timeRemaining < 3 ? 'pulse 1s infinite' : 'none',
+                              '@keyframes pulse': {
+                                '0%': { opacity: 1 },
+                                '50%': { opacity: 0.5 },
+                                '100%': { opacity: 1 },
                               }
-                              label={
-                                <Box sx={{ 
-                                  py: 1, 
-                                  position: 'relative',
-                                  ...(showResult && {
-                                    '&::before': {
-                                      content: '""',
-                                      position: 'absolute',
-                                      top: 0,
-                                      left: -10,
-                                      right: -10,
-                                      bottom: 0,
-                                      background: question.correctAnswers.includes(index) 
-                                        ? 'rgba(34, 197, 94, 0.1)'
-                                        : index.toString() === selectedAnswer
-                                          ? 'rgba(239, 68, 68, 0.1)'
-                                          : 'transparent',
-                                      borderRadius: 1,
-                                      zIndex: -1,
-                                    }
-                                  })
-                                }}>
-                                  <Typography sx={{ color: 'white' }}>
-                                    {sentence}
-                                    {showResult && question.correctAnswers.includes(index) && (
-                                      <CheckCircleIcon sx={{ ml: 1, color: '#4ade80', fontSize: 18, verticalAlign: 'middle' }} />
-                                    )}
-                                    {showResult && !question.correctAnswers.includes(index) && index.toString() === selectedAnswer && (
-                                      <CancelIcon sx={{ ml: 1, color: '#f87171', fontSize: 18, verticalAlign: 'middle' }} />
-                                    )}
-                                  </Typography>
-                                </Box>
-                              }
-                            />
-                          ))}
-                        </RadioGroup>
-                        
-                        {!showResult ? (
-                          <Button
-                            variant="contained"
-                            onClick={handleAnswerSubmit}
-                            disabled={selectedAnswer === ''}
-                            sx={{
-                              mt: 3,
-                              background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
-                              '&.Mui-disabled': {
-                                background: 'rgba(124, 58, 237, 0.3)',
-                                color: 'rgba(255, 255, 255, 0.5)'
-                              }
-                            }}
-                          >
-                            Submit Answer
-                          </Button>
-                        ) : (
-                          <Box sx={{ mt: 3 }}>
-                            <Paper sx={{
-                              p: 2,
-                              background: isCorrect 
-                                ? 'rgba(34, 197, 94, 0.1)' 
-                                : 'rgba(239, 68, 68, 0.1)',
-                              borderLeft: '4px solid',
-                              borderColor: isCorrect ? '#4ade80' : '#f87171',
-                              mb: 3
                             }}>
-                              <Typography variant="subtitle1" sx={{ 
-                                color: isCorrect ? '#4ade80' : '#f87171',
-                                fontWeight: 'bold',
-                                mb: 1
-                              }}>
-                                {isCorrect ? 'Correct!' : 'Incorrect!'}
-                              </Typography>
-                              <Typography sx={{ color: 'white' }}>
-                                {question.explanation}
-                              </Typography>
-                            </Paper>
-                            
-                            <Box sx={{ display: 'flex', gap: 2 }}>
-                              <Button
-                                variant="contained"
-                                onClick={handleNextQuestion}
-                                sx={{
-                                  background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
-                                  flex: 1
-                                }}
-                              >
-                                Next Question
-                              </Button>
-                              <Button
-                                variant="outlined"
-                                onClick={handleFinishGame}
-                                sx={{
-                                  borderColor: 'rgba(124, 58, 237, 0.4)',
-                                  color: '#A78BFA',
-                                  '&:hover': {
-                                    borderColor: '#7C3AED',
-                                    background: 'rgba(124, 58, 237, 0.1)',
-                                  }
-                                }}
-                              >
-                                Finish Game
-                              </Button>
-                            </Box>
+                              {timeRemaining}s
+                            </Typography>
                           </Box>
                         )}
-                      </Paper>
-                    </motion.div>
-                  )}
-                </>
+                        
+                        <Chip 
+                          label={`Question ${questionCount}`} 
+                          size="small"
+                          sx={{ 
+                            backgroundColor: 'rgba(124, 58, 237, 0.2)',
+                            color: 'white'
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    
+                    <Divider sx={{ borderColor: 'rgba(124, 58, 237, 0.2)', mb: 2 }} />
+                    
+                    <Box sx={{ mb: 3, p: 2, background: 'rgba(15, 23, 42, 0.5)', borderRadius: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Typography 
+                          variant="h5" 
+                          sx={{ 
+                            color: '#A78BFA', 
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {question.word}
+                        </Typography>
+                        <IconButton
+                          onClick={() => speakText(`${question.word}. ${question.definition}`)}
+                          sx={{
+                            color: '#A78BFA',
+                            '&:hover': {
+                              color: '#7C3AED',
+                              backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                            }
+                          }}
+                        >
+                          <VolumeUpIcon />
+                        </IconButton>
+                      </Box>
+                      <Typography variant="body1" sx={{ color: 'white' }}>
+                        <strong>Definition:</strong> {question.definition}
+                      </Typography>
+                    </Box>
+                    
+                    <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
+                      Which sentence uses this word correctly?
+                    </Typography>
+
+                    <RadioGroup
+                      value={selectedAnswer}
+                      onChange={(e) => setSelectedAnswer(e.target.value)}
+                      sx={{ mb: 3 }}
+                    >
+                      {question.sentences.map((sentence, index) => (
+                        <FormControlLabel
+                          key={index}
+                          value={index.toString()}
+                          control={
+                            <Radio 
+                              sx={{
+                                color: '#A78BFA',
+                                '&.Mui-checked': {
+                                  color: '#7C3AED',
+                                },
+                              }}
+                            />
+                          }
+                          label={
+                            <Paper 
+                              sx={{ 
+                                p: 2, 
+                                borderRadius: 1, 
+                                background: 'rgba(15, 23, 42, 0.5)',
+                                border: selectedAnswer === index.toString() ? '1px solid #7C3AED' : '1px solid transparent',
+                              }}
+                            >
+                              <Typography sx={{ color: 'white' }}>
+                                {index + 1}. {sentence}
+                              </Typography>
+                            </Paper>
+                          }
+                          sx={{
+                            alignItems: 'flex-start',
+                            '.MuiFormControlLabel-label': {
+                              width: '100%',
+                              marginTop: 0.5,
+                            }
+                          }}
+                        />
+                      ))}
+                    </RadioGroup>
+                    
+                    {showResult ? (
+                      <Box sx={{ mt: 3 }}>
+                        <Paper sx={{ 
+                          p: 2, 
+                          background: isCorrect ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                          border: `1px solid ${isCorrect ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                          mb: 3
+                        }}>
+                          <Typography sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            color: isCorrect ? '#4ade80' : '#f87171',
+                            fontWeight: 'bold',
+                            mb: 1
+                          }}>
+                            {isCorrect ? (
+                              <>
+                                <CheckCircleIcon sx={{ mr: 1 }} />
+                                Correct Answer!
+                              </>
+                            ) : (
+                              <>
+                                <CancelIcon sx={{ mr: 1 }} />
+                                Incorrect Answer!
+                              </>
+                            )}
+                          </Typography>
+                          
+                          <Typography sx={{ color: 'white', mb: 2 }}>
+                            The correct usage is sentence #{question.correctAnswer + 1}.
+                          </Typography>
+                          
+                          <Typography variant="subtitle2" sx={{ color: '#A78BFA', mb: 1 }}>
+                            Explanation:
+                          </Typography>
+                          <Typography sx={{ color: 'white' }}>
+                            {question.explanation}
+                          </Typography>
+                        </Paper>
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+                          <Button
+                            variant="contained"
+                            onClick={handleNextQuestion}
+                            sx={{
+                              background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
+                              px: 3
+                            }}
+                          >
+                            Next Question
+                          </Button>
+                          
+                          <Button
+                            variant="outlined"
+                            onClick={handleFinishGame}
+                            sx={{
+                              borderColor: 'rgba(124, 58, 237, 0.4)',
+                              color: '#A78BFA',
+                              '&:hover': {
+                                borderColor: '#7C3AED',
+                                background: 'rgba(124, 58, 237, 0.1)',
+                              }
+                            }}
+                          >
+                            Finish Game
+                          </Button>
+                        </Box>
+                      </Box>
+                    ) : (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                        <Button
+                          variant="contained"
+                          onClick={handleAnswerSubmit}
+                          disabled={selectedAnswer === ''}
+                          sx={{
+                            background: 'linear-gradient(45deg, #7C3AED, #3B82F6)',
+                            px: 4,
+                            py: 1,
+                            opacity: selectedAnswer === '' ? 0.5 : 1
+                          }}
+                        >
+                          Submit Answer
+                        </Button>
+                      </Box>
+                    )}
+                  </Paper>
+                </motion.div>
               )}
             </>
           )}
-        </Box>
+        </>
+      )}
+      
+      <Box sx={{ 
+        mt: 4, 
+        p: 2, 
+        background: 'rgba(30, 41, 59, 0.4)',
+        backdropFilter: 'blur(10px)',
+        border: '1px solid rgba(124, 58, 237, 0.1)',
+        borderRadius: 1
+      }}>
+        <Typography variant="subtitle2" sx={{ color: '#A78BFA', fontWeight: 'bold', mb: 1 }}>
+          How to Play:
+        </Typography>
+        <Typography sx={{ color: 'white', fontSize: '0.9rem' }}>
+          Choose which sentence uses the given word correctly based on its definition. 
+          {timerEnabled && ' Answer quickly to earn more points!'} Challenge yourself with different difficulty levels to 
+          expand your vocabulary.
+        </Typography>
       </Box>
-    </Box>
+    </Container>
   );
 };
 

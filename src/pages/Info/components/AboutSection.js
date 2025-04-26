@@ -22,7 +22,7 @@ const AboutSection = ({ onTabChange }) => {
     {
       title: 'About',
       icon: <InfoIcon />,
-      description: 'Learn about SpeechViber and our mission to improve English speaking skills.',
+      description: 'Learn about SpeechViber and our mission on improving skills.',
       tab: 'about'
     },
     {
@@ -36,28 +36,14 @@ const AboutSection = ({ onTabChange }) => {
       icon: <HelpIcon />,
       description: 'Get support, report issues, and track your support tickets.',
       tab: 'helpdesk'
-    },
-    {
-      title: 'Updates',
-      icon: <UpdateIcon />,
-      description: 'Stay informed about the latest features and improvements.',
-      tab: 'updates'
-    },
-    {
-      title: 'Learn More',
-      icon: <LearnIcon />,
-      description: 'Discover additional resources and documentation.',
-      tab: 'learn'
     }
   ];
 
   const handleNavigate = (tab) => {
     const tabIndexes = {
       'about': 0,
-      'learn': 1,
-      'authors': 2,
-      'helpdesk': 3,
-      'updates': 4
+      'authors': 1,
+      'helpdesk': 2
     };
     onTabChange(tabIndexes[tab]);
   };

@@ -18,7 +18,7 @@ import { motion } from 'framer-motion';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
-import { getDatabase, ref, push } from 'firebase/database';
+import { getDatabase, ref, push, set } from 'firebase/database';
 import { useAuth } from '../../contexts/AuthContext';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
 const API_KEY = "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";
@@ -206,24 +206,41 @@ const WordPower = () => {
     if (currentUser && questionCount > 0 && !dataSaved) {
       try {
         const database = getDatabase();
-        const wordPowerData = {
-          time: new Date().toISOString(),
-          attemptedQuestions: questionCount,
-          score: Math.min(100, score),
-          difficulty: difficulty
+        const timestamp = Date.now();
+  
+        // Create activity data in the standard format
+        const activityData = {
+          date: new Date().toISOString(),
+          description: `Completed Word Power challenge with score: ${score}, Difficulty: ${difficulty}/10`,
+          duration: "10", // Duration in minutes
+          id: `wordpower_${timestamp}_${score}`,
+          score: score,
+          type: "Word Power",
+          completed: true
         };
-
-        const wordPowerRef = ref(
-          database, 
-          `users/${currentUser.uid}/word-power/${Date.now()}`
+  
+        // Save to history/activities path
+        const historyRef = ref(
+          database,
+          `users/${currentUser.uid}/history/data/${timestamp}/activities/0`
         );
-        
-        push(wordPowerRef, wordPowerData)
-          .then(() => {
-            console.log('Word Power data saved successfully');
-            setDataSaved(true);
+  
+        // Save both activity data and detailed word power data
+        Promise.all([
+          set(historyRef, activityData),
+          push(ref(database, `users/${currentUser.uid}/word-power`), {
+            time: new Date().toISOString(),
+            attemptedQuestions: questionCount,
+            score: Math.min(100, score),
+            difficulty: difficulty
           })
-          .catch(error => console.error('Error saving Word Power data:', error));
+        ])
+        .then(() => {
+          console.log('Word Power data saved successfully');
+          setDataSaved(true);
+        })
+        .catch(error => console.error('Error saving Word Power data:', error));
+  
       } catch (error) {
         console.error('Error saving to database:', error);
       }

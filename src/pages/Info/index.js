@@ -6,17 +6,13 @@ import {
   Info as InfoIcon,
   Person as PersonIcon,
   Help as HelpIcon,
-  Book as BookIcon,
-  Update as UpdateIcon,
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
 // Import components
 import AboutSection from './components/AboutSection';
-import LearnMoreSection from './components/LearnMoreSection';
 import AuthorsSection from './components/AuthorsSection';
 import HelpDeskSection from './components/HelpDeskSection';
-import UpdatesSection from './components/UpdatesSection';
 
 const Info = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -28,7 +24,6 @@ const Info = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-    
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -55,17 +50,13 @@ const Info = () => {
           scrollButtons="auto"
         >
           <Tab icon={<InfoIcon />} label="About" iconPosition="start" />
-          <Tab icon={<BookIcon />} label="Learn More" iconPosition="start" />
           <Tab icon={<PersonIcon />} label="Authors" iconPosition="start" />
           <Tab icon={<HelpIcon />} label="Help Desk" iconPosition="start" />
-          <Tab icon={<UpdateIcon />} label="Updates" iconPosition="start" />
         </Tabs>
 
         {activeTab === 0 && <AboutSection onTabChange={setActiveTab} />}
-        {activeTab === 1 && <LearnMoreSection />}
-        {activeTab === 2 && <AuthorsSection />}
-        {activeTab === 3 && <HelpDeskSection />}
-        {activeTab === 4 && <UpdatesSection />}
+        {activeTab === 1 && <AuthorsSection />}
+        {activeTab === 2 && <HelpDeskSection />}
       </motion.div>
     </Container>
   );

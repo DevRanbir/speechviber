@@ -10,7 +10,6 @@ import Analysis from './pages/Analysis';
 import Profile from './pages/Profile';
 import Chatbox from './pages/Chatbox';
 import GrammarCheck from './pages/GrammarCheck';
-import Pronunciation from './pages/Pronunciation';
 import WordPower from './pages/WordPower';
 import DebateMode from './pages/DebateMode';
 import PresentAndLearn from './pages/PresentAndLearn';
@@ -116,7 +115,6 @@ const App = () => {
                   <Route path="settings" element={<Settings />} />
                   <Route path="chatbox" element={<Chatbox />} />
                   <Route path="grammarcheck" element={<GrammarCheck />} />
-                  <Route path="pronunciation" element={<Pronunciation />} />
                   <Route path="wordpower" element={<WordPower />} />
                   <Route path="debatemode" element={<DebateMode />} />
                   <Route path="presentandlearn" element={<PresentAndLearn />} />

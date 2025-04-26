@@ -26,9 +26,10 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import InfoIcon from '@mui/icons-material/Info';
-import { getDatabase, ref, push } from 'firebase/database';
+import { getDatabase, ref, push, set } from 'firebase/database';
 import { useAuth } from '../../contexts/AuthContext';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
+
 const API_KEY = "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";
 const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -59,6 +60,7 @@ const TongueTwister = () => {
   const [accuracy, setAccuracy] = useState(100);
   const [dataSaved, setDataSaved] = useState(false);
   const [tongueTwisterHistory, setTongueTwisterHistory] = useState([]);
+  
 
   // Error handling state
   const [error, setError] = useState(null);
@@ -257,33 +259,50 @@ const TongueTwister = () => {
     setAccuracy(newAccuracy);
   };
 
-  // Save game data to Firebase
+  // In the saveGameData function, update the Firebase save section:
   const saveGameData = () => {
     if (currentUser && questionCount > 0 && !dataSaved) {
       try {
         const database = getDatabase();
-        const tonguetwisterData = {
-          time: new Date().toISOString(),
-          correctCount: correctCount,
-          incorrectCount: incorrectCount,
+        const timestamp = Date.now();
+
+        // Create activity data in the standard format
+        const activityData = {
+          date: new Date().toISOString(),
+          description: `Completed Tongue Twister challenge with score: ${score}, Accuracy: ${accuracy}%`,
+          duration: "15", // Duration in minutes
+          id: `tonguetwister_${timestamp}_${score}`,
           score: score,
-          accuracy: accuracy,
-          timerEnabled: timerEnabled,
-          timeLimit: timerEnabled ? timeLimit : 0,
-          questionType: questionType
+          type: "Tongue Twister",
+          completed: true
         };
-  
-        const tonguetwisterRef = ref(
-          database, 
-          `users/${currentUser.uid}/tongue-twister/${Date.now()}`
+
+        // Save to history/activities path
+        const historyRef = ref(
+          database,
+          `users/${currentUser.uid}/history/data/${timestamp}/activities/0`
         );
-        
-        push(tonguetwisterRef, tonguetwisterData)
-          .then(() => {
-            console.log('Tongue Twister data saved successfully');
-            setDataSaved(true);
+
+        // Save both activity data and detailed tongue twister data
+        Promise.all([
+          set(historyRef, activityData),
+          push(ref(database, `users/${currentUser.uid}/tongue-twister`), {
+            time: new Date().toISOString(),
+            correctCount: correctCount,
+            incorrectCount: incorrectCount,
+            score: score,
+            accuracy: accuracy,
+            timerEnabled: timerEnabled,
+            timeLimit: timerEnabled ? timeLimit : 0,
+            questionType: questionType
           })
-          .catch(error => console.error('Error saving Tongue Twister data:', error));
+        ])
+        .then(() => {
+          console.log('Tongue Twister data saved successfully');
+          setDataSaved(true);
+        })
+        .catch(error => console.error('Error saving Tongue Twister data:', error));
+
       } catch (error) {
         console.error('Error saving to database:', error);
       }

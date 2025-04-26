@@ -183,24 +183,49 @@ Keep your response direct and clear.`
       console.log('Parsed analysis result:', formattedResult);
       setAnalysis(formattedResult);
       
-      // Save data to Firebase - Fixed implementation
+      // In the handleSubmitStory function, update the Firebase save section:
       if (currentUser && formattedResult.score !== null && formattedResult.score !== undefined) {
         try {
           const database = getDatabase();
-          const storyData = {
-            time: new Date().toISOString(),
-            score: formattedResult.score
+          const timestamp = Date.now();
+
+          // Create activity data in the standard format
+          const activityData = {
+            date: new Date().toISOString(),
+            description: `Completed story analysis with match score: ${formattedResult.score}%`,
+            duration: "10", // Duration in minutes
+            id: `story_${timestamp}_${formattedResult.score}`,
+            score: formattedResult.score,
+            type: "Story Analysis",
+            completed: true
           };
-      
-          // Create a proper reference structure
-          const storyRef = ref(
-            database, 
-            `users/${currentUser.uid}/storymode/data/${Date.now()}`
+
+          // Save to history/activities path
+          const historyRef = ref(
+            database,
+            `users/${currentUser.uid}/history/data/${timestamp}/activities/0`
           );
-          
-          // Use set instead of push and handle the promise properly
-          await set(storyRef, storyData);
-          console.log('Story analysis data saved successfully with score:', formattedResult.score);
+
+          // Save both activity data and detailed story data
+          Promise.all([
+            set(historyRef, activityData),
+            set(ref(database, `users/${currentUser.uid}/storymode/data/${timestamp}`), {
+              time: new Date().toISOString(),
+              score: formattedResult.score,
+              story: story,
+              analysis: {
+                storyImageMatch: formattedResult.storyImageMatch,
+                creativeElements: formattedResult.creativeElements,
+                missingElements: formattedResult.missingElements,
+                suggestions: formattedResult.suggestions
+              }
+            })
+          ])
+          .then(() => {
+            console.log('Story analysis data saved successfully with score:', formattedResult.score);
+          })
+          .catch(error => console.error('Error saving story data:', error));
+
         } catch (error) {
           console.error('Error saving to database:', error);
         }
@@ -209,6 +234,8 @@ Keep your response direct and clear.`
           currentUser ? `Score issue: ${formattedResult.score}` : 'User not logged in',
           'Raw score text:', rawAnalysis);
       }
+
+
       
     } catch (err) {
       console.error("Error analyzing story and image:", err);

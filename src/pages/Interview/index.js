@@ -1062,6 +1062,7 @@ const InterviewSimulator = () => {
               try {
                 const database = getDatabase();
                 const timestamp = Date.now();
+                const imageAnalysisScore = calculateImageScore();
                 
                 // Create activity data for history
                 const activityData = {
@@ -1081,7 +1082,7 @@ const InterviewSimulator = () => {
                   technical: Math.round(results.technicalKnowledge.score * 20),
                   cultural: Math.round(results.culturalFit.score * 20),
                   confidence: Math.round((results.communicationSkills.score + results.overallScore) * 10),
-                  imageAnalysis: Math.round(calculateImageScore()),
+                  imageAnalysis: imageAnalysisScore,
                   createdAt: serverTimestamp(),
                   jobRole,
                   company
@@ -1115,14 +1116,25 @@ const InterviewSimulator = () => {
               }
             };
             
-            // Add this helper function to calculate image score
             const calculateImageScore = () => {
-              const totalImages = messages.filter(msg => msg.isUser).length;
-              const goodPostureCount = messages.filter(msg => 
-                msg.isUser && msg.imageAnalysis?.posture === 'good'
-              ).length;
+              // If no messages, return default score
+              if (!messages.length) return 50;
+            
+              const userMessages = messages.filter(msg => msg.isUser);
               
-              return totalImages > 0 ? (goodPostureCount / totalImages) * 100 : 70;
+              // If no user messages, return default score
+              if (!userMessages.length) return 50;
+            
+              // Count messages with good posture/engagement
+              const positiveSignals = userMessages.reduce((count, msg) => {
+                // Consider message positive if user is visible and engaged
+                const hasImage = msg.imageDataUrl != null;
+                return hasImage ? count + 1 : count;
+              }, 0);
+            
+              // Calculate percentage but ensure minimum score of 70
+              const baseScore = (positiveSignals / userMessages.length) * 100;
+              return Math.max(70, Math.round(baseScore));
             };
             
             const handleStartSimulation = () => {

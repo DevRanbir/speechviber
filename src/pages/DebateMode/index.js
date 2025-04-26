@@ -123,7 +123,7 @@ const RecordingIndicator = styled('span')({
 import { useNavigate } from 'react-router-dom';
 
 // Add Firebase imports at the top with the other imports
-import { getDatabase, ref, push } from 'firebase/database';
+import { getDatabase, ref, push, set } from 'firebase/database';
 import { useAuth } from '../../contexts/AuthContext';
 
 const DebateSimulator = () => {
@@ -468,26 +468,43 @@ const DebateSimulator = () => {
           if (currentUser) {
             try {
               const database = getDatabase();
-              const debateData = {
-                time: new Date().toISOString(),
+              const timestamp = Date.now();
+          
+              // Create activity data in the same format
+              const activityData = {
+                date: new Date().toISOString(),
+                description: `Completed debate on "${topic}" with score: ${finalScore}%`,
+                duration: "15", // Duration in minutes
+                id: `debate_${timestamp}_${finalScore}`,
                 score: finalScore,
-                result: finalWinner === "human" ? "victory" : "defeat",
-                topic: topic,
-                difficulty: difficulty,
-                position: userPosition
+                type: "Debate",
+                completed: true
               };
-
-              const debateRef = ref(
-                database, 
-                `users/${currentUser.uid}/debate/data/${Date.now()}`
+          
+              // Save to history/activities path
+              const historyRef = ref(
+                database,
+                `users/${currentUser.uid}/history/data/${timestamp}/activities/0`
               );
-              
-              push(debateRef, debateData)
-                .then(() => {
-                  console.log('Debate data saved successfully');
-                  setDataSaved(true);
+          
+              // Save both activity data and detailed debate data
+              Promise.all([
+                set(historyRef, activityData),
+                push(ref(database, `users/${currentUser.uid}/debate/data`), {
+                  time: new Date().toISOString(),
+                  topic: topic,
+                  difficulty: difficulty,
+                  position: userPosition,
+                  score: finalScore,
+                  result: finalWinner === "human" ? "victory" : "defeat"
                 })
-                .catch(error => console.error('Error saving debate data:', error));
+              ])
+              .then(() => {
+                console.log('Debate data saved successfully');
+                setDataSaved(true);
+              })
+              .catch(error => console.error('Error saving debate data:', error));
+          
             } catch (error) {
               console.error('Error saving to database:', error);
             }

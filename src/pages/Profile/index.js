@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getDatabase, ref, onValue, update } from 'firebase/database';
+import { getDatabase, ref, onValue, update, get } from 'firebase/database';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile } from 'firebase/auth';
 import { motion } from 'framer-motion';
@@ -28,6 +28,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import HeadsetMicIcon from '@mui/icons-material/HeadsetMic';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import LogoutIcon from '@mui/icons-material/Logout';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
 
@@ -142,13 +143,43 @@ const ProfilePage = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   
-  const [performanceMetrics, setPerformanceMetrics] = useState([]);
-  const [recentActivities, setRecentActivities] = useState([]);
-  const [mostRecentActivity, setMostRecentActivity] = useState(null);
   const [historyData, setHistoryData] = useState([]);
-  const [averageScore, setAverageScore] = useState(0);
-  const rankInfo = getRankInfo(userData.achievements?.currentRank || 'starter');
-  const nextRankInfo = getRankInfo(getNextRank(userData.achievements?.currentRank || 'starter'));
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [weeklyGoals, setWeeklyGoals] = useState({
+    sessions: { target: 7, current: 0 },
+    minutes: { target: 120, current: 0 }
+  });
+  const [metrics, setMetrics] = useState({
+    averageScore: 0,
+    totalSessions: 0,
+    totalHours: 0,
+    completedExercises: 0
+  });
+  
+  // Calculate weekly stats
+  const calculateWeeklyStats = (activities) => {
+    const now = new Date();
+    const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+    weekStart.setHours(0, 0, 0, 0);
+
+    const weeklyActivities = activities.filter(activity => {
+      const activityDate = new Date(activity.date);
+      return activityDate >= weekStart;
+    });
+
+    const weeklyMinutes = weeklyActivities.reduce((acc, curr) => acc + (parseInt(curr.duration) || 0), 0);
+    
+    setWeeklyGoals(prev => ({
+      sessions: {
+        ...prev.sessions,
+        current: weeklyActivities.length
+      },
+      minutes: {
+        ...prev.minutes,
+        current: weeklyMinutes
+      }
+    }));
+  };
 
   useEffect(() => {
     if (!currentUser) {
@@ -158,56 +189,31 @@ const ProfilePage = () => {
 
     fetchUserData();
     fetchUserHistory();
-
-    // Points calculation logic and interval
-    const calculatePoints = () => {
-      const totalMinutes = userData.achievements?.totalTime || 0;
-      const totalHours = totalMinutes / 60;
-      const timeBasedPoints = Math.floor(totalHours * 10);
-      
-      if (currentUser && timeBasedPoints > 0) {
-        update(ref(database, `users/${currentUser.uid}/profile/achievements`), {
-          points: timeBasedPoints
-        });
-        
-        setUserData(prev => ({
-          ...prev,
-          achievements: {
-            ...prev.achievements,
-            points: timeBasedPoints
-          }
-        }));
-      }
-    };
-
-    calculatePoints();
-
-    const intervalId = setInterval(() => {
-      setUserData(prev => {
-        const newPoints = prev.achievements.points + 1;
-        update(ref(database, `users/${currentUser.uid}/profile/achievements`), {
-          points: newPoints
-        });
-        return {
-          ...prev,
-          achievements: {
-            ...prev.achievements,
-            points: newPoints
-          }
-        };
-      });
-    }, 10 * 60 * 1000);
-
-    return () => clearInterval(intervalId);
-  }, [currentUser, navigate, database, userData.achievements?.totalTime]);
+  }, [currentUser, navigate]);
 
   // Helper functions
   const determineRank = (points) => {
-    if (points >= 500) return { rank: 'Master', stage: 'Expert' };
-    if (points >= 300) return { rank: 'Advanced', stage: 'Professional' };
-    if (points >= 200) return { rank: 'Intermediate', stage: 'Skilled' };
-    if (points >= 45) return { rank: 'Beginner Plus', stage: 'Improving' };
-    return { rank: 'Starter', stage: 'Novice' };
+    if (points >= 500) return { rank: 'Master', stage: 'Master' };
+    if (points >= 300) return { rank: 'Advanced', stage: 'Advanced' };
+    if (points >= 200) return { rank: 'Intermediate', stage: 'Intermediate' };
+    if (points >= 45) return { rank: 'Beginner Plus', stage: 'Beginner Plus' };
+    return { rank: 'Starter', stage: 'Starter' };
+  };
+
+  const calculateMetrics = (activities) => {
+    const totalScore = activities.reduce((acc, curr) => acc + (Number(curr.score) || 0), 0);
+    const points = userData.achievements?.points || 0;
+    const totalMinutes = points * 10; // Convert points to minutes (1 point = 10 minutes)
+    const totalHours = (totalMinutes / 60).toFixed(2);
+    const totalSessions = activities.length;
+    
+    return {
+      averageScore: activities.length ? Math.round(totalScore / activities.length) : 0,
+      totalHours: Number(totalHours), // Convert back to number to avoid string display
+      totalSessions,
+      achievementPoints: points,
+      totalMinutes
+    };
   };
 
   const fetchUserData = () => {
@@ -216,9 +222,13 @@ const ProfilePage = () => {
       const data = snapshot.val() || {};
       const points = data.profile?.achievements?.points || 0;
       const rankData = determineRank(points);
+      // Calculate hours from stored minutes if available
+      const totalMinutes = points * 10;
+      const hours = (totalMinutes / 60).toFixed(2);
 
+      // Update rank in database based on points
       update(ref(database, `users/${currentUser.uid}/profile/achievements`), {
-        currentRank: rankData.rank,
+        currentRank: rankData.rank.toLowerCase(),
         currentStage: rankData.stage
       });
       
@@ -228,16 +238,16 @@ const ProfilePage = () => {
         avatar: data.photoURL || currentUser.photoURL || DEFAULT_AVATAR,
         profession: data.profile?.profession || 'Speech Professional',
         bio: data.profile?.bio || 'Share your speaking journey and expertise here.',
-        stats: data.profile?.stats || {
-          sessions: 0,
-          hours: 0,
-          audience: 0,
-          badges: 0
+        stats: {
+          sessions: data.profile?.stats?.sessions || 0,
+          hours: Number(hours), // Convert to number
+          audience: data.profile?.stats?.audience || 0,
+          badges: data.profile?.stats?.badges || 0
         },
         achievements: {
-          totalTime: data.profile?.achievements?.totalTime || 0,
+          totalTime: totalMinutes,
           points: points,
-          currentRank: rankData.rank,
+          currentRank: rankData.rank.toLowerCase(),
           currentStage: rankData.stage
         }
       });
@@ -257,38 +267,53 @@ const ProfilePage = () => {
     });
   };
 
+  
   const fetchUserHistory = () => {
     try {
       const historyRef = ref(database, `users/${currentUser.uid}/history/data`);
-      onValue(historyRef, (snapshot) => {
-        const data = snapshot.val() || {};
+      const achievementsRef = ref(database, `users/${currentUser.uid}/profile/achievements`);
+  
+      // First get achievements data
+      onValue(achievementsRef, (achievementsSnapshot) => {
+        const achievementsData = achievementsSnapshot.val() || {};
+        const points = achievementsData.points || 0;
         
-        const allActivities = Object.entries(data).map(([timestamp, timeData]) => {
-          const activities = timeData.activities || {};
-          return Object.entries(activities).map(([key, activity]) => ({
-            type: activity.type || 'Practice Session',
-            date: activity.date,
-            description: activity.description,
-            duration: activity.duration,
-            score: activity.score || 0,
-            id: activity.id,
-            icon: getActivityIcon(activity.type)
-          }));
-        }).flat();
-
-        allActivities.sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        setHistoryData(allActivities);
-        setRecentActivities(allActivities.slice(0, 5));
-        setMostRecentActivity(allActivities[0] || null);
-        
-        // Calculate average score
-        if (allActivities.length > 0) {
-          const totalScore = allActivities.reduce((acc, curr) => acc + (Number(curr.score) || 0), 0);
-          setAverageScore(Math.round(totalScore / allActivities.length));
-        }
-        
-        updateUserStats(allActivities);
+        // Then get history data
+        onValue(historyRef, (snapshot) => {
+          const data = snapshot.val() || {};
+          
+          const allActivities = Object.entries(data).map(([timestamp, timeData]) => {
+            const activities = timeData.activities || {};
+            return Object.entries(activities).map(([key, activity]) => ({
+              type: activity.type || 'Practice Session',
+              date: activity.date,
+              description: activity.description,
+              duration: parseInt(activity.duration) || 0,
+              score: parseInt(activity.score) || 0,
+              completed: activity.completed || false,
+              id: activity.id,
+              icon: getActivityIcon(activity.type)
+            }));
+          }).flat();
+  
+          allActivities.sort((a, b) => new Date(b.date) - new Date(a.date));
+          
+          setHistoryData(allActivities);
+          setRecentActivities(allActivities.slice(0, 5));
+          
+          // Calculate metrics using points from achievements
+          const calculatedMetrics = {
+            averageScore: allActivities.length ? 
+              Math.round(allActivities.reduce((acc, curr) => acc + (curr.score || 0), 0) / allActivities.length) : 0,
+            totalSessions: allActivities.length,
+            totalHours: ((points * 10) / 60).toFixed(2), // Convert points to hours (1 point = 10 minutes)
+            achievementPoints: points
+          };
+  
+          setMetrics(calculatedMetrics);
+          updateUserStats(allActivities, calculatedMetrics);
+          calculateWeeklyStats(allActivities);
+        });
       });
     } catch (error) {
       console.error("Error fetching history data:", error);
@@ -296,18 +321,30 @@ const ProfilePage = () => {
     }
   };
 
-  const updateUserStats = (activities) => {
-    const totalSessions = activities.length;
+  // Update the updateUserStats function
+  const updateUserStats = (activities, calculatedMetrics) => {
     const totalMinutes = activities.reduce((acc, curr) => acc + (parseInt(curr.duration) || 0), 0);
-    const estimatedHours = Math.round(totalMinutes / 60);
-
+    const totalHours = Math.round(totalMinutes / 60);
+    
+    // Update both local state and database
+    const updates = {
+      [`users/${currentUser.uid}/profile/stats`]: {
+        sessions: calculatedMetrics.totalSessions,
+        hours: totalHours,
+        totalMinutes: totalMinutes // Store raw minutes for accuracy
+      }
+    };
+    
+    // Update database
+    update(ref(database), updates);
+    
+    // Update local state
     setUserData(prev => ({
       ...prev,
       stats: {
         ...prev.stats,
-        sessions: totalSessions,
-        hours: estimatedHours,
-        badges: 0
+        sessions: calculatedMetrics.totalSessions,
+        hours: totalHours
       }
     }));
   };
@@ -341,7 +378,6 @@ const ProfilePage = () => {
     if (editMode) {
       setEditedUserData({
         name: userData.name,
-        email: userData.email,
         profession: userData.profession,
         bio: userData.bio,
       });
@@ -368,6 +404,7 @@ const ProfilePage = () => {
     setAvatarError(true);
   };
   
+  // Modify the handleSaveProfile function
   const handleSaveProfile = async () => {
     setLoading(true);
     setError(null);
@@ -388,12 +425,17 @@ const ProfilePage = () => {
         await updateProfile(currentUser, { photoURL });
       }
       
+      // Get current data first
+      const userRef = ref(database, `users/${currentUser.uid}`);
+      const snapshot = await get(userRef);
+      const currentData = snapshot.val() || {};
+      
+      // Prepare updates while preserving existing data
       const updates = {
         name: editedUserData.name,
-        email: currentUser.email,
         photoURL: photoURL,
         profile: {
-          ...userData.profile,
+          ...currentData.profile, // Preserve existing profile data
           profession: editedUserData.profession,
           bio: editedUserData.bio,
         }
@@ -402,7 +444,7 @@ const ProfilePage = () => {
       await update(ref(database, `users/${currentUser.uid}`), updates);
       
       setUserData(prev => ({
-        ...prev,
+        ...prev, // Preserve all existing data
         name: editedUserData.name,
         profession: editedUserData.profession,
         bio: editedUserData.bio,
@@ -437,7 +479,7 @@ const ProfilePage = () => {
     return isMobile ? { width: 100, height: 100 } : { width: 150, height: 150 };
   };
 
-  // Helper functions that should be implemented elsewhere but are referenced
+  // Helper functions
   function getRankInfo(rank) {
     const ranks = {
       'starter': { name: 'Starter', pointsNeeded: 0 },
@@ -460,6 +502,9 @@ const ProfilePage = () => {
     return rankOrder[currentIndex + 1];
   }
   
+  const rankInfo = getRankInfo(userData.achievements?.currentRank || 'starter');
+  const nextRankInfo = getRankInfo(getNextRank(userData.achievements?.currentRank || 'starter'));
+  
   if (loading && !userData.name) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -475,7 +520,6 @@ const ProfilePage = () => {
       py: { xs: 2, md: 4 },
       px: { xs: 1, md: 3 },
       overflowX: 'hidden',
-      // Leave space for sidebar
       maxWidth: { sm: '100%', md: 'calc(100% - 80px)' }
     }}>
       <Container maxWidth="lg">
@@ -779,7 +823,7 @@ const ProfilePage = () => {
                         
                         <Chip 
                           icon={<AccessTimeIcon fontSize="small" />} 
-                          label={`${userData.stats?.hours || 0} hours of practice`}
+                          label={`${metrics.totalHours || 0} hours of practice`}
                           size={isMobile ? "small" : "medium"}
                           sx={{ 
                             backgroundColor: alpha(theme.palette.secondary.main, 0.1),
@@ -787,10 +831,20 @@ const ProfilePage = () => {
                             '& .MuiChip-icon': { color: theme.palette.secondary.light }
                           }}
                         />
+                        <Chip 
+                          icon={<MicIcon fontSize="small" />} 
+                          label={`${userData.stats?.sessions || 0} sessions`}
+                          size={isMobile ? "small" : "medium"}
+                          sx={{ 
+                            backgroundColor: alpha(theme.palette.success.main, 0.1),
+                            color: 'white',
+                            '& .MuiChip-icon': { color: theme.palette.success.light }
+                          }}
+                        />
                         
                         <Chip 
                           icon={<EmojiEventsIcon fontSize="small" />} 
-                          label={`${userData.achievements?.points || 0} points`}
+                          label={`${userData.achievements?.currentStage || 'Novice'}`}
                           size={isMobile ? "small" : "medium"}
                           sx={{ 
                             backgroundColor: alpha(theme.palette.warning.main, 0.1),
@@ -807,53 +861,61 @@ const ProfilePage = () => {
           </GlassCard>
         </motion.div>
         
-        {/* Key Metrics */}
+        {/* Stats Cards */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={6} sm={3}>
-              <MetricCard>
-                <EmojiEventsIcon sx={{ fontSize: 38, color: theme.palette.warning.main, mb: 1 }} />
-                <Typography variant="h5" color="white" fontWeight="bold">
-                  {averageScore || 0}%
-                </Typography>
-                <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
-                  Avg. Score
-                </Typography>
-              </MetricCard>
-            </Grid>
-            
+          <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid item xs={6} sm={3}>
               <MetricCard>
-                <TrendingUpIcon sx={{ fontSize: 38, color: theme.palette.primary.main, mb: 1 }} />
-                <Typography variant="h5" color="white" fontWeight="bold">
-                  {userData.stats?.sessions || 0}
+                <TimelineIcon sx={{ fontSize: 40, color: theme.palette.primary.main, mb: 1 }} />
+                <Typography variant="h5" fontWeight="bold" color="white">
+                  {metrics.totalSessions}
                 </Typography>
                 <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
-                  Sessions
+                  Total Sessions
                 </Typography>
               </MetricCard>
             </Grid>
-            
             <Grid item xs={6} sm={3}>
               <MetricCard>
-                <AccessTimeIcon sx={{ fontSize: 38, color: theme.palette.secondary.main, mb: 1 }} />
-                <Typography variant="h5" color="white" fontWeight="bold">
-                  {userData.stats?.hours || 0}
+                <AccessTimeIcon sx={{ fontSize: 40, color: theme.palette.secondary.main, mb: 1 }} />
+                <Typography variant="h5" fontWeight="bold" color="white">
+                  {metrics.totalHours}
                 </Typography>
                 <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
-                  Hours
+                  Hours of Practice
                 </Typography>
               </MetricCard>
             </Grid>
-            
+            <Grid item xs={6} sm={3}>
+              <MetricCard>
+                <BarChartIcon sx={{ fontSize: 40, color: theme.palette.success.main, mb: 1 }} />
+                <Typography variant="h5" fontWeight="bold" color="white">
+                  {metrics.averageScore}%
+                </Typography>
+                <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
+                  Average Score
+                </Typography>
+              </MetricCard>
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <MetricCard>
+                <CheckCircleIcon sx={{ fontSize: 40, color: theme.palette.info.main, mb: 1 }} />
+                <Typography variant="h5" fontWeight="bold" color="white">
+                  {metrics.achievementPoints}
+                </Typography>
+                <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
+                  Achievement Points
+                </Typography>
+              </MetricCard>
+            </Grid>
           </Grid>
         </motion.div>
         
-        {/* Progress and Rank */}
+        {/* Rank Progress */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -861,485 +923,238 @@ const ProfilePage = () => {
         >
           <GlassCard sx={{ mb: 3 }}>
             <CardContent>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="h6" color="white" sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                  <TimelineIcon sx={{ mr: 1 }} /> Progress & Ranking
-                </Typography>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} md={8}>
-                    <Box sx={{ width: '100%' }}>
+              <Typography variant="h6" fontWeight="bold" sx={{ color: 'white', mb: 2 }}>
+                <TrendingUpIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+                Progress Tracking
+              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2, borderRadius: 2, bgcolor: alpha('#1a2035', 0.7) }}>
+                    <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="subtitle1" fontWeight="bold" color="white">
+                        Current Level: {rankInfo.name}
+                      </Typography>
+                      <Chip 
+                        label={`${userData.achievements?.points || 0} points`} 
+                        size="small"
+                        sx={{ bgcolor: alpha(theme.palette.primary.main, 0.2), color: 'white' }}
+                      />
+                    </Box>
+                    
+                    <Box sx={{ mb: 2 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="body2" color="primary.light">
-                          {userData.achievements?.points || 0} points
+                        <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
+                          Next Level: {nextRankInfo.name}
                         </Typography>
-                        <Typography variant="body2" color="primary.light">
-                          Next: {nextRankInfo.name} ({nextRankInfo.pointsNeeded} pts)
+                        <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
+                          {Math.min(userData.achievements?.points || 0, nextRankInfo.pointsNeeded)}/{nextRankInfo.pointsNeeded}
                         </Typography>
                       </Box>
                       <LinearProgress 
                         variant="determinate" 
-                        value={Math.min(
-                          ((userData.achievements?.points || 0) / nextRankInfo.pointsNeeded) * 100, 
-                          100
-                        )} 
-                        sx={{ 
-                          height: 10, 
-                          borderRadius: 5,
-                          backgroundColor: alpha(theme.palette.primary.main, 0.2),
-                          '& .MuiLinearProgress-bar': {
-                            backgroundColor: theme.palette.primary.main,
-                            borderRadius: 5
-                          }
-                        }} 
+                        value={Math.min(100, ((userData.achievements?.points || 0) / nextRankInfo.pointsNeeded) * 100)}
+                        sx={{ height: 8, borderRadius: 4 }}
                       />
                     </Box>
-                  </Grid>
-                  <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: { xs: 'flex-start', md: 'flex-end' }, gap: 1 }}>
-                      <EmojiEventsIcon color="warning" />
-                      <Box>
+                    
+                    <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
+                      Keep practicing to earn more points and unlock new ranks!
+                    </Typography>
+                  </Paper>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 2, borderRadius: 2, bgcolor: alpha('#1a2035', 0.7) }}>
+                    <Typography variant="subtitle1" fontWeight="bold" color="white" sx={{ mb: 1 }}>
+                      <CalendarTodayIcon sx={{ verticalAlign: 'middle', mr: 1, fontSize: 'small' }} />
+                      Weekly Goals
+                    </Typography>
+                    
+                    <Box sx={{ mb: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                         <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
-                          Current rank
+                          Sessions: {weeklyGoals.sessions.current}/{weeklyGoals.sessions.target}
                         </Typography>
-                        <Typography variant="h6" color="white" fontWeight="bold">
-                          {userData.achievements?.currentRank || 'Starter'}
+                        <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
+                          {Math.min(100, (weeklyGoals.sessions.current / weeklyGoals.sessions.target) * 100).toFixed(0)}%
                         </Typography>
                       </Box>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={Math.min(100, (weeklyGoals.sessions.current / weeklyGoals.sessions.target) * 100)}
+                        color="secondary"
+                        sx={{ height: 8, borderRadius: 4, mb: 2 }}
+                      />
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
+                          Minutes: {weeklyGoals.minutes.current}/{weeklyGoals.minutes.target}
+                        </Typography>
+                        <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
+                          {Math.min(100, (weeklyGoals.minutes.current / weeklyGoals.minutes.target) * 100).toFixed(0)}%
+                        </Typography>
+                      </Box>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={Math.min(100, (weeklyGoals.minutes.current / weeklyGoals.minutes.target) * 100)}
+                        color="success"
+                        sx={{ height: 8, borderRadius: 4 }}
+                      />
                     </Box>
-                  </Grid>
+                    
+                    <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
+                      {weeklyGoals.sessions.current >= weeklyGoals.sessions.target && weeklyGoals.minutes.current >= weeklyGoals.minutes.target 
+                        ? "Amazing! You've completed your weekly goals!"
+                        : "Keep practicing to meet your weekly goals!"}
+                    </Typography>
+                  </Paper>
                 </Grid>
-              </Box>
-              
-              <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.1)' }} />
-              
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="body1" color="white" sx={{ mb: 1 }}>
-                  <span style={{ fontWeight: 'bold' }}>Stage:</span> {userData.achievements?.currentStage || 'Novice'}
-                </Typography>
-                <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
-                  Keep practicing to reach the next stage! You need {nextRankInfo.pointsNeeded - (userData.achievements?.points || 0)} more points to advance.
-                </Typography>
-              </Box>
+              </Grid>
             </CardContent>
           </GlassCard>
         </motion.div>
         
-        {/* Main Content Tabs */}
+        {/* Tabs for different sections */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
         >
-          <GlassCard>
-            <Box sx={{ borderBottom: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
-              <Tabs 
-                value={activeTab} 
-                onChange={handleTabChange}
-                variant="scrollable"
-                scrollButtons="auto"
-                aria-label="profile tabs"
-                sx={{
-                  '& .MuiTabs-indicator': {
-                    backgroundColor: theme.palette.primary.main,
-                  },
-                }}
-              >
-                <StyledTab label="Overview" icon={<BarChartIcon />} id="tab-0" />
-                <StyledTab label="Practice History" icon={<HeadsetMicIcon />} id="tab-1" />
-                <StyledTab label="Activity Feed" icon={<CalendarTodayIcon />} id="tab-2" />
-              </Tabs>
-            </Box>
+          <Paper sx={{ mb: 3, backgroundColor: 'rgba(17, 25, 40, 0.75)', borderRadius: 2 }}>
+            <Tabs 
+              value={activeTab} 
+              onChange={handleTabChange}
+              variant="fullWidth"
+              indicatorColor="primary"
+              textColor="inherit"
+              aria-label="profile tabs"
+              sx={{ borderBottom: 1, borderColor: 'divider' }}
+            >
+              <StyledTab 
+                icon={<HeadsetMicIcon />} 
+                label={isMobile ? "" : "History"} 
+                iconPosition="start" 
+              />
+              <StyledTab 
+                icon={<VisibilityIcon />} 
+                label={isMobile ? "" : "Activities"} 
+                iconPosition="start" 
+              />
+            </Tabs>
             
-            {/* Overview Tab */}
+            {/* History Tab */}
             {activeTab === 0 && (
-              <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-                {/* Recent Activity */}
-                <Box sx={{ mb: 4 }}>
-                  <Typography variant="h6" color="white" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                    <CalendarTodayIcon sx={{ mr: 1 }} /> Recent Activity
-                  </Typography>
-                  
-                  {recentActivities.length === 0 ? (
-                    <Paper 
-                      sx={{ 
-                        p: 3, 
-                        textAlign: 'center', 
-                        backgroundColor: 'rgba(17, 25, 40, 0.75)',
-                        backdropFilter: 'blur(16px)',
-                        border: '1px solid rgba(255, 255, 255, 0.125)',
-                      }}
-                    >
-                      <Typography color="white">
-                        No recent activities found. Start practicing to see your progress!
-                      </Typography>
-                    </Paper>
-                  ) : (
-                    <List>
-                      {recentActivities.map((activity, index) => (
-                        <ActivityItem key={index} divider={index < recentActivities.length - 1}>
-                          <ListItemAvatar>
-                            <Avatar 
-                              sx={{ 
-                                bgcolor: alpha(theme.palette.primary.main, 0.2),
-                                color: theme.palette.primary.main
-                              }}
-                            >
-                              {activity.icon}
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={
-                              <Typography variant="subtitle1" color="white">
-                                {activity.type || 'Practice Session'}
-                              </Typography>
-                            }
-                            secondary={
-                              <Box component="span" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                                {activity.description || 'No description available'} • {formatDate(activity.date)}
-                              </Box>
-                            }
-                          />
-                          <Box sx={{ 
-                            ml: { xs: 0, sm: 2 }, 
-                            mt: { xs: 1, sm: 0 }, 
-                            width: { xs: '100%', sm: 'auto' } 
-                          }}>
-                            <Chip 
-                              size="small" 
-                              label={`${activity.duration || 0} mins`}
-                              sx={{ 
-                                mr: 1, 
-                                backgroundColor: alpha(theme.palette.info.main, 0.1),
-                                color: theme.palette.info.light
-                              }}
-                            />
-                            {activity.score && (
-                              <Chip 
-                                size="small" 
-                                label={`Score: ${activity.score}%`}
-                                sx={{ 
-                                  backgroundColor: activity.score >= 80 
-                                    ? alpha(theme.palette.success.main, 0.1)
-                                    : activity.score >= 50
-                                      ? alpha(theme.palette.warning.main, 0.1)
-                                      : alpha(theme.palette.error.main, 0.1),
-                                  color: activity.score >= 80 
-                                    ? theme.palette.success.light
-                                    : activity.score >= 50
-                                      ? theme.palette.warning.light
-                                      : theme.palette.error.light
-                                }}
-                              />
-                            )}
-                          </Box>
-                        </ActivityItem>
-                      ))}
-                    </List>
-                  )}
-                </Box>
-                            
-                {/* Goal Setting */}
-                <Box>
-                  <Typography variant="h6" color="white" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-                    <TimelineIcon sx={{ mr: 1 }} /> Your Goals
-                  </Typography>
-                  <Paper
-                    sx={{
-                      p: 2,
-                      backgroundColor: 'rgba(17, 25, 40, 0.6)',
-                      backdropFilter: 'blur(16px)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      color: 'white'
-                    }}
-                  >
-                    <Typography variant="subtitle1" sx={{ mb: 2 }}>
-                      Weekly Practice Goals
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ mb: 2 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                            <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
-                              Sessions (3 / 7)
-                            </Typography>
-                            <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
-                              43%
-                            </Typography>
-                          </Box>
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={43} 
-                            sx={{ 
-                              height: 8, 
-                              borderRadius: 4,
-                              backgroundColor: alpha(theme.palette.primary.main, 0.2),
-                              '& .MuiLinearProgress-bar': {
-                                backgroundColor: theme.palette.primary.main,
-                                borderRadius: 4
-                              }
-                            }} 
-                          />
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ mb: 2 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                            <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
-                              Practice Time (45 / 120 mins)
-                            </Typography>
-                            <Typography variant="body2" color="rgba(255, 255, 255, 0.7)">
-                              38%
-                            </Typography>
-                          </Box>
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={38} 
-                            sx={{ 
-                              height: 8, 
-                              borderRadius: 4,
-                              backgroundColor: alpha(theme.palette.secondary.main, 0.2),
-                              '& .MuiLinearProgress-bar': {
-                                backgroundColor: theme.palette.secondary.main,
-                                borderRadius: 4
-                              }
-                            }} 
-                          />
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </Paper>
-                </Box>
-              </CardContent>
-            )}
-            
-            {/* Practice History Tab */}
-            {activeTab === 1 && (
-              <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-                <Paper
-                  sx={{
-                    backgroundColor: 'rgba(17, 25, 40, 0.5)',
-                    backdropFilter: 'blur(16px)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    p: { xs: 1, sm: 2 },
-                    mb: 3
-                  }}
-                >
+              <Box sx={{ p: { xs: 2, md: 3 } }}>
+                <Typography variant="h6" fontWeight="bold" sx={{ color: 'white', mb: 2 }}>
+                  Practice History
+                </Typography>
+                
+                <Paper sx={{ bgcolor: alpha('#1a2035', 0.7), borderRadius: 2, mb: 3 }}>
                   <Tabs
                     value={practiceTab}
-                    onChange={(e, newValue) => setPracticeTab(newValue)}
+                    onChange={(e, val) => setPracticeTab(val)}
                     variant="scrollable"
                     scrollButtons="auto"
-                    aria-label="practice history tabs"
-                    sx={{
-                      '& .MuiTabs-indicator': {
-                        backgroundColor: theme.palette.secondary.main,
-                      },
-                    }}
+                    textColor="inherit"
+                    sx={{ borderBottom: 1, borderColor: 'divider' }}
                   >
-                    <Tab label="All History" sx={{ color: 'white' }} />
-                    <Tab label="Textual" sx={{ color: 'white' }} />
-                    <Tab label="Audio" sx={{ color: 'white' }} />
-                    <Tab label="Visual" sx={{ color: 'white' }} />
+                    <Tab label="Text" icon={<MenuBookIcon />} iconPosition="start" sx={{ color: 'white' }} />
+                    <Tab label="Audio" icon={<MicIcon />} iconPosition="start" sx={{ color: 'white' }} />
+                    <Tab label="Visual" icon={<VisibilityIcon />} iconPosition="start" sx={{ color: 'white' }} />
                   </Tabs>
-                </Paper>
-                
-                {practiceTab === 0 && (
-                  <Box>
-                    {historyData.length === 0 ? (
-                      <Paper 
-                        sx={{ 
-                          p: 3, 
-                          textAlign: 'center', 
-                          backgroundColor: 'rgba(17, 25, 40, 0.75)',
-                          backdropFilter: 'blur(16px)',
-                        }}
-                      >
-                        <Typography color="white">
-                          No practice history found. Start practicing to build your history!
-                        </Typography>
-                      </Paper>
-                    ) : (
-                      <List>
-                        {historyData.map((activity, index) => (
-                          <ActivityItem key={index} divider={index < historyData.length - 1}>
-                            <ListItemAvatar>
-                              <Avatar 
-                                sx={{ 
-                                  bgcolor: alpha(theme.palette.primary.main, 0.2),
-                                  color: theme.palette.primary.main
-                                }}
-                              >
-                                {activity.icon}
-                              </Avatar>
-                            </ListItemAvatar>
-                            <ListItemText
-                              primary={
-                                <Typography variant="subtitle1" color="white">
-                                  {activity.type || 'Practice Session'}
-                                </Typography>
-                              }
-                              secondary={
-                                <Box component="span" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                                  {activity.description || 'No description available'} • {formatDate(activity.date)}
-                                </Box>
-                              }
-                            />
-                            <Box sx={{ 
-                              ml: { xs: 0, sm: 2 }, 
-                              mt: { xs: 1, sm: 0 }, 
-                              width: { xs: '100%', sm: 'auto' } 
-                            }}>
-                              <Chip 
-                                size="small" 
-                                label={`${activity.duration || 0} mins`}
-                                sx={{ 
-                                  mr: 1, 
-                                  backgroundColor: alpha(theme.palette.info.main, 0.1),
-                                  color: theme.palette.info.light
-                                }}
-                              />
-                              {activity.score && (
-                                <Chip 
-                                  size="small" 
-                                  label={`Score: ${activity.score}%`}
-                                  sx={{ 
-                                    backgroundColor: activity.score >= 80 
-                                      ? alpha(theme.palette.success.main, 0.1)
-                                      : activity.score >= 50
-                                        ? alpha(theme.palette.warning.main, 0.1)
-                                        : alpha(theme.palette.error.main, 0.1),
-                                    color: activity.score >= 80 
-                                      ? theme.palette.success.light
-                                      : activity.score >= 50
-                                        ? theme.palette.warning.light
-                                        : theme.palette.error.light
-                                  }}
-                                />
-                              )}
-                            </Box>
-                          </ActivityItem>
-                        ))}
-                      </List>
+                  
+                  <Box sx={{ p: 2 }}>
+                    {practiceTab === 0 && (
+                      <TextualHistory history={historyData.filter(item => item.type !== 'Audio Practice')} />
+                    )}
+                    {practiceTab === 1 && (
+                      <AudioHistory history={historyData.filter(item => item.type === 'Audio Practice')} />
+                    )}
+                    {practiceTab === 2 && (
+                      <VisualHistory history={historyData} />
                     )}
                   </Box>
-                )}
-                
-                {practiceTab === 1 && <TextualHistory historyData={historyData.filter(h => h.type === 'Grammar Check' || h.type === 'Word Power')} />}
-                {practiceTab === 2 && <AudioHistory historyData={historyData.filter(h => h.type === 'FastTrack' || h.type === 'Tongue Twister')} />}
-                {practiceTab === 3 && <VisualHistory historyData={historyData.filter(h => h.type === 'Interview Practice' || h.type === 'Debate')} />}
-              </CardContent>
+                </Paper>
+              </Box>
             )}
             
-            {/* Activity Feed Tab */}
-            {activeTab === 2 && (
-              <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-                <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="h6" color="white">
-                    Activity Timeline
-                  </Typography>
-                  <Button variant="outlined" size="small" sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}>
-                    Filter
-                  </Button>
-                </Box>
+            {/* Activities Tab */}
+            {activeTab === 1 && (
+              <Box sx={{ p: { xs: 2, md: 3 } }}>
+                <Typography variant="h6" fontWeight="bold" sx={{ color: 'white', mb: 2 }}>
+                  Recent Activities
+                </Typography>
                 
-                {historyData.length === 0 ? (
-                  <Paper 
-                    sx={{ 
-                      p: 3, 
-                      textAlign: 'center', 
-                      backgroundColor: 'rgba(17, 25, 40, 0.75)',
-                      backdropFilter: 'blur(16px)',
-                    }}
-                  >
-                    <Typography color="white">
-                      No activities found. Use the app to see your activity feed grow!
-                    </Typography>
-                  </Paper>
-                ) : (
-                  <List sx={{ 
-                    backgroundColor: 'rgba(17, 25, 40, 0.5)',
-                    backdropFilter: 'blur(8px)',
-                    borderRadius: 2,
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    overflow: 'hidden'
-                  }}>
-                    {historyData.map((activity, index) => (
-                      <React.Fragment key={index}>
+                {recentActivities.length > 0 ? (
+                  <List sx={{ bgcolor: alpha('#1a2035', 0.7), borderRadius: 2, p: 0 }}>
+                    {recentActivities.map((activity, index) => (
+                      <React.Fragment key={activity.id || index}>
                         <ActivityItem>
                           <ListItemAvatar>
-                            <Avatar 
-                              sx={{ 
-                                bgcolor: alpha(theme.palette.primary.main, 0.2),
-                                color: theme.palette.primary.main
-                              }}
-                            >
+                            <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
                               {activity.icon}
                             </Avatar>
                           </ListItemAvatar>
                           <ListItemText
                             primary={
-                              <Typography variant="subtitle1" color="white">
-                                {activity.type || 'Practice Session'}
+                              <Typography variant="subtitle1" sx={{ color: 'white', fontWeight: 'medium' }}>
+                                {activity.type}
                               </Typography>
                             }
                             secondary={
-                              <Box>
-                                <Typography component="span" variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'block' }}>
-                                  {activity.description || 'No description available'}
+                              <Box sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                                <Typography variant="body2" component="span">
+                                  {activity.description || 'Practice session'}
                                 </Typography>
-                                <Typography component="span" variant="caption" sx={{ color: 'primary.light' }}>
-                                  {formatDate(activity.date)}
-                                </Typography>
+                                <Box sx={{ 
+                                  display: 'flex', 
+                                  gap: 2, 
+                                  mt: 0.5,
+                                  flexWrap: 'wrap' 
+                                }}>
+                                  <Typography variant="caption" component="span">
+                                    <AccessTimeIcon fontSize="inherit" sx={{ mr: 0.5, verticalAlign: 'text-bottom' }} />
+                                    {activity.duration} min
+                                  </Typography>
+                                  <Typography variant="caption" component="span">
+                                    <CalendarTodayIcon fontSize="inherit" sx={{ mr: 0.5, verticalAlign: 'text-bottom' }} />
+                                    {formatDate(activity.date)}
+                                  </Typography>
+                                  {activity.score > 0 && (
+                                    <Typography variant="caption" component="span">
+                                      <BarChartIcon fontSize="inherit" sx={{ mr: 0.5, verticalAlign: 'text-bottom' }} />
+                                      Score: {activity.score}%
+                                    </Typography>
+                                  )}
+                                </Box>
                               </Box>
                             }
                           />
-                          <Box sx={{ 
-                            ml: { xs: 0, sm: 2 }, 
-                            mt: { xs: 1, sm: 0 }, 
-                            width: { xs: '100%', sm: 'auto' },
-                            display: 'flex',
-                            flexDirection: { xs: 'row', sm: 'column' },
-                            alignItems: { xs: 'flex-start', sm: 'flex-end' },
-                            gap: 1
-                          }}>
-                            <Chip 
-                              size="small" 
-                              label={`${activity.duration || 0} mins`}
-                              sx={{ 
-                                backgroundColor: alpha(theme.palette.info.main, 0.1),
-                                color: theme.palette.info.light
-                              }}
-                            />
-                            {activity.score && (
-                              <Chip 
-                                size="small" 
-                                label={`Score: ${activity.score}%`}
-                                sx={{ 
-                                  backgroundColor: activity.score >= 80 
-                                    ? alpha(theme.palette.success.main, 0.1)
-                                    : activity.score >= 50
-                                      ? alpha(theme.palette.warning.main, 0.1)
-                                      : alpha(theme.palette.error.main, 0.1),
-                                  color: activity.score >= 80 
-                                    ? theme.palette.success.light
-                                    : activity.score >= 50
-                                      ? theme.palette.warning.light
-                                      : theme.palette.error.light
-                                }}
-                              />
-                            )}
-                          </Box>
                         </ActivityItem>
-                        {index < historyData.length - 1 && (
-                          <Divider variant="inset" component="li" sx={{ borderColor: 'rgba(255,255,255,0.1)' }} />
-                        )}
+                        {index < recentActivities.length - 1 && <Divider sx={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />}
                       </React.Fragment>
                     ))}
                   </List>
+                ) : (
+                  <Box sx={{ 
+                    bgcolor: alpha('#1a2035', 0.7), 
+                    borderRadius: 2, 
+                    p: 3, 
+                    textAlign: 'center',
+                    color: 'rgba(255, 255, 255, 0.7)'
+                  }}>
+                    <Typography variant="body1">
+                      No recent activities found.
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      Start practicing to see your activities here!
+                    </Typography>
+                  </Box>
                 )}
-              </CardContent>
+              </Box>
             )}
-          </GlassCard>
+          </Paper>
         </motion.div>
       </Container>
     </Box>

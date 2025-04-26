@@ -87,7 +87,7 @@ const AIMentor = () => {
   const [recording, setRecording] = useState(false);
   const [currentImage, setCurrentImage] = useState(null);
   const [showStarters, setShowStarters] = useState(true);
-  const [responseLength, setResponseLength] = useState(50);
+  const [responseLength, setResponseLength] = useState(20);
   const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [contextMenuAnchor, setContextMenuAnchor] = useState(null);
