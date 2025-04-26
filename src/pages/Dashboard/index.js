@@ -57,6 +57,7 @@ import {
   Chat as ChatIcon,
   AutoStories
 } from '@mui/icons-material';
+import { useMediaQuery } from '@mui/material';
 import Menu from '@mui/material/Menu';
 
 import { 
@@ -206,16 +207,20 @@ const WelcomePopup = ({
   onPopupPermanentChange
 }) => {
   const [infoTab, setInfoTab] = useState(0);
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
   return (
     <Dialog
       open={open}
       maxWidth="md"
       fullWidth
+      fullScreen={isMobile}
       TransitionComponent={Fade}
       PaperProps={{
         sx: {
-          width: "2000px",
-          borderRadius: 3,
+          width: { xs: '100%', md: "2000px" },
+          height: isMobile ? '100%' : 'auto',
+          borderRadius: isMobile ? 0 : 3,
           background: theme.palette.background.paper,
           backgroundImage: 'linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)',
           backdropFilter: 'blur(10px)',
@@ -229,14 +234,15 @@ const WelcomePopup = ({
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
-        pb: 1
+        py: { xs: 1.5, sm: 2 },
+        px: { xs: 2, sm: 3 }
       }}>
-        <Typography variant="subtitle1" component="div" fontWeight="bold">
+        <Typography variant="subtitle1" component="div" fontWeight="bold" noWrap>
           Welcome to SpeechViber
         </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
           <CountdownTimer seconds={timer} />
-          <IconButton onClick={onClose} size="small">
+          <IconButton onClick={onClose} size="small" edge="end" sx={{ ml: 0.5 }}>
             <CloseIcon />
           </IconButton>
         </Box>
@@ -245,61 +251,76 @@ const WelcomePopup = ({
       <Tabs
         value={selectedTab}
         onChange={onTabChange}
+        variant={isMobile ? "fullWidth" : "standard"}
         sx={{ 
-          px: 3,
+          px: { xs: 1, sm: 3 },
           borderBottom: 1,
           borderColor: 'divider',
           '& .MuiTab-root': {
-            minHeight: 48,
+            minHeight: { xs: 56, sm: 48 },
             textTransform: 'none',
-            fontWeight: 500
+            fontWeight: 500,
+            fontSize: { xs: '0.8rem', sm: '0.875rem' },
+            p: { xs: 1, sm: 2 }
           }
         }}
       >
         <Tab 
-          icon={<SmartToyIcon sx={{ fontSize: 20 }} />}
+          icon={<SmartToyIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
           iconPosition="start"
           label="Hello" 
         />
         <Tab 
-          icon={<InfoIcon sx={{ fontSize: 20 }} />}
+          icon={<InfoIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
           iconPosition="start"
           label="About" 
         />
         <Tab 
-          icon={<NewReleasesIcon sx={{ fontSize: 20 }} />}
+          icon={<NewReleasesIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />}
           iconPosition="start"
           label="What's New" 
         />
       </Tabs>
 
-      <DialogContent sx={{ p: 3, overflow: 'hidden' }}>
+      <DialogContent sx={{ 
+        p: { xs: 2, sm: 3 }, 
+        overflow: 'auto',
+        height: isMobile ? 'calc(100% + 120px)' : 'auto'
+      }}>
         <TabPanel value={selectedTab} index={0}>
-          <Typography variant="h6" sx={{ mb: 2, color: theme.palette.primary.main }}>
+          <Typography variant="h6" sx={{ 
+            mb: { xs: 1.5, sm: 2 }, 
+            color: theme.palette.primary.main,
+            fontSize: { xs: '1.1rem', sm: '1.25rem' }
+          }}>
             Hello {userData.name ? userData.name.split(' ')[0] : 'there'}! 👋
           </Typography>
-          <Typography paragraph>
+          <Typography paragraph sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}>
             Welcome to SpeechViber, your AI-powered communication skills enhancement platform. We're here to help you become a more confident and effective communicator.
           </Typography>
-          <Typography paragraph>
+          <Typography paragraph sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}>
             Here's what you can do with SpeechViber:
           </Typography>
-          <Grid container spacing={2}>
+          <Grid container spacing={isMobile ? 1.5 : 2}>
             {features.slice(0, 4).map((feature, index) => (
               <Grid item xs={12} sm={6} key={index}>
                 <Box sx={{ 
                   display: 'flex', 
-                  gap: 2, 
-                  p: 2, 
+                  gap: { xs: 1.5, sm: 2 }, 
+                  p: { xs: 1.5, sm: 2 }, 
                   borderRadius: 2,
                   bgcolor: alpha(feature.color, 0.1)
                 }}>
-                  {feature.icon}
+                  <Box sx={{ pt: 0.25 }}>
+                    {React.cloneElement(feature.icon, { 
+                      sx: { fontSize: { xs: 18, sm: 22 } } 
+                    })}
+                  </Box>
                   <Box>
-                    <Typography variant="subtitle2" fontWeight="bold">
+                    <Typography variant="subtitle2" fontWeight="bold" sx={{ fontSize: { xs: '0.85rem', sm: '0.95rem' } }}>
                       {feature.title}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                       {feature.description}
                     </Typography>
                   </Box>
@@ -311,10 +332,10 @@ const WelcomePopup = ({
 
         <TabPanel value={selectedTab} index={1}>
           <Box sx={{ 
-            height: '400px', 
+            height: isMobile ? 'calc(100% - 40px)' : '400px', 
             overflow: 'auto',
             '&::-webkit-scrollbar': {
-              width: '8px',
+              width: '6px',
             },
             '&::-webkit-scrollbar-thumb': {
               backgroundColor: theme.palette.primary.main,
@@ -324,11 +345,24 @@ const WelcomePopup = ({
               backgroundColor: theme.palette.background.paper,
             }
           }}>
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-              <Tabs value={infoTab} onChange={(e, newValue) => setInfoTab(newValue)}>
-                <Tab icon={<InfoIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="About" />
-                <Tab icon={<PersonIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Authors" />
-                <Tab icon={<HelpIcon sx={{ fontSize: 20 }} />} iconPosition="start" label="Help" />
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: { xs: 1.5, sm: 2 } }}>
+              <Tabs 
+                value={infoTab} 
+                onChange={(e, newValue) => setInfoTab(newValue)}
+                variant={isMobile ? "scrollable" : "standard"}
+                scrollButtons={isMobile ? "auto" : false}
+                allowScrollButtonsMobile
+                sx={{
+                  '& .MuiTab-root': {
+                    fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                    minWidth: { xs: 80, sm: 120 },
+                    p: { xs: 1, sm: 2 }
+                  }
+                }}
+              >
+                <Tab icon={<InfoIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />} iconPosition="start" label="About" />
+                <Tab icon={<PersonIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />} iconPosition="start" label="Authors" />
+                <Tab icon={<HelpIcon sx={{ fontSize: { xs: 16, sm: 20 } }} />} iconPosition="start" label="Help" />
               </Tabs>
             </Box>
             
@@ -336,26 +370,31 @@ const WelcomePopup = ({
               <AboutSection 
                 disableNavigation={true} 
                 onTabChange={(newValue) => setInfoTab(newValue)}
+                isMobile={isMobile}
               />
             </TabPanel>
             <TabPanel value={infoTab} index={1}>
-              <AuthorsSection />
+              <AuthorsSection isMobile={isMobile} />
             </TabPanel>
             <TabPanel value={infoTab} index={2}>
-              <HelpDeskSection />
+              <HelpDeskSection isMobile={isMobile} />
             </TabPanel>
           </Box>
         </TabPanel>
 
         <TabPanel value={selectedTab} index={2}>
-          <Typography variant="h6" sx={{ mb: 2, color: theme.palette.primary.main }}>
+          <Typography variant="h6" sx={{ 
+            mb: { xs: 1.5, sm: 2 }, 
+            color: theme.palette.primary.main,
+            fontSize: { xs: '1.1rem', sm: '1.25rem' }
+          }}>
             Latest Updates
           </Typography>
-          <Stack spacing={2}>
+          <Stack spacing={isMobile ? 1.5 : 2}>
             {[
               {
-                version: '2.0.0',
-                date: 'March 2024',
+                version: '2.7.4',
+                date: 'April 2025',
                 features: [
                   'New Interview Practice Module',
                   'Enhanced AI Analysis',
@@ -366,23 +405,28 @@ const WelcomePopup = ({
               // Add more updates as needed
             ].map((update, index) => (
               <Box key={index} sx={{ 
-                p: 2, 
+                p: { xs: 1.5, sm: 2 }, 
                 borderRadius: 2,
                 border: `1px solid ${theme.palette.divider}`
               }}>
-                <Typography variant="subtitle1" fontWeight="bold">
+                <Typography variant="subtitle1" fontWeight="bold" sx={{ fontSize: { xs: '0.9rem', sm: '1rem' } }}>
                   Version {update.version}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem' } }}>
                   Released: {update.date}
                 </Typography>
-                <List dense>
+                <List dense sx={{ pt: 0.5, pb: 0 }}>
                   {update.features.map((feature, idx) => (
-                    <ListItem key={idx}>
-                      <ListItemIcon>
-                        <CheckCircleIcon color="success" sx={{ fontSize: 20 }} />
+                    <ListItem key={idx} sx={{ py: { xs: 0.5, sm: 0.75 } }}>
+                      <ListItemIcon sx={{ minWidth: { xs: 32, sm: 40 } }}>
+                        <CheckCircleIcon color="success" sx={{ fontSize: { xs: 16, sm: 20 } }} />
                       </ListItemIcon>
-                      <ListItemText primary={feature} />
+                      <ListItemText 
+                        primary={feature} 
+                        primaryTypographyProps={{ 
+                          fontSize: { xs: '0.85rem', sm: '0.9rem' } 
+                        }} 
+                      />
                     </ListItem>
                   ))}
                 </List>
@@ -392,36 +436,62 @@ const WelcomePopup = ({
         </TabPanel>
       </DialogContent>
 
-      <DialogActions sx={{ p: 2, pt: 0 }}>
-      <FormControlLabel
-        control={
-          <Checkbox 
-            checked={showPopupPermanently}
-            onChange={(e) => onPopupPermanentChange(e.target.checked)}
-            size="small"
-          />
-        }
-        label="Don't show again"
-      />
-      <Box sx={{ flex: 1 }} />
-      <Button onClick={onClose}>Close</Button>
-      <Button 
-        variant="contained"
-        onClick={() => {
-          onStayOpen();
-          onTimerChange(300); // Use the prop instead of direct state setter
-        }}
-        startIcon={<SmartToyIcon />}
-      >
-        Keep Open
-      </Button>
-    </DialogActions>
+      <DialogActions sx={{ 
+        p: { xs: 1.5, sm: 2 }, 
+        pt: { xs: 1, sm: 0 },
+        flexDirection: isMobile ? 'column' : 'row',
+        alignItems: isMobile ? 'stretch' : 'center',
+        gap: isMobile ? 1 : 0
+      }}>
+        <FormControlLabel
+          control={
+            <Checkbox 
+              checked={showPopupPermanently}
+              onChange={(e) => onPopupPermanentChange(e.target.checked)}
+              size="small"
+            />
+          }
+          label={<Typography sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>Don't show again</Typography>}
+          sx={{ mr: isMobile ? 0 : 'auto' }}
+        />
+        {!isMobile && <Box sx={{ flex: 1 }} />}
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 1,
+          width: isMobile ? '100%' : 'auto',
+          flexDirection: isMobile ? 'column' : 'row'
+        }}>
+          <Button 
+            onClick={onClose}
+            fullWidth={isMobile}
+            size={isMobile ? "medium" : "medium"}
+          >
+            Close
+          </Button>
+          <Button 
+            variant="contained"
+            onClick={() => {
+              onStayOpen();
+              onTimerChange(300);
+            }}
+            startIcon={<SmartToyIcon sx={{ fontSize: isMobile ? 18 : 20 }} />}
+            fullWidth={isMobile}
+            size={isMobile ? "medium" : "medium"}
+          >
+            Keep Open
+          </Button>
+        </Box>
+      </DialogActions>
     </Dialog>
   );
 };
+
 // Add TabPanel component definition before Dashboard component
 const TabPanel = (props) => {
   const { children, value, index, ...other } = props;
+  const theme = useTheme(); // Get theme using useTheme hook
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
   return (
     <div
       role="tabpanel"
@@ -429,7 +499,12 @@ const TabPanel = (props) => {
       {...other}
     >
       {value === index && (
-        <Box sx={{ pt: 2 }}>
+        <Box sx={{ 
+          pt: { xs: 1, sm: 2 },
+          px: { xs: 0, sm: 1 },
+          maxHeight: isMobile ? 'auto' : 'auto',
+          overflowY: 'auto'
+        }}>
           {children}
         </Box>
       )}
