@@ -40,8 +40,7 @@ Build a **creative and interactive multimodal application** powered by **Groq**,
 **Frontend:** React.js, Material-UI, Framer Motion  
 **Backend:** Firebase Realtime Database  
 **Authentication & DB:** Firebase  
-**APIs:**  
-- Groq (NLP, Speech-to-Text, Text-to-Speech)  
+**APIs:** Groq (NLP, Speech-to-Text, Text-to-Speech)  
 **Hosting:** GitHub Pages  
 
 ✅ **Groq Sponsor Tech:** NLP-powered personalized feedback, real-time speech and text processing.
