@@ -42,7 +42,6 @@ Build a **creative and interactive multimodal application** powered by **Groq**,
 **Authentication & DB:** Firebase  
 **APIs:**  
 - Groq (NLP, Speech-to-Text, Text-to-Speech)  
-- face-api.js (Facial Expression Recognition)  
 **Hosting:** GitHub Pages  
 
 ✅ **Groq Sponsor Tech:** NLP-powered personalized feedback, real-time speech and text processing.
