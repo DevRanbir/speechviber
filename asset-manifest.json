@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/speechviber/static/css/main.c3dcbdef.css",
-    "main.js": "/speechviber/static/js/main.44beef85.js",
+    "main.js": "/speechviber/static/js/main.93124590.js",
     "static/js/582.e88d3cd0.chunk.js": "/speechviber/static/js/582.e88d3cd0.chunk.js",
     "static/js/589.56d0ef11.chunk.js": "/speechviber/static/js/589.56d0ef11.chunk.js",
     "static/js/678.582256d8.chunk.js": "/speechviber/static/js/678.582256d8.chunk.js",
@@ -9,6 +9,6 @@
   },
   "entrypoints": [
     "static/css/main.c3dcbdef.css",
-    "static/js/main.44beef85.js"
+    "static/js/main.93124590.js"
   ]
 }
