@@ -35,10 +35,11 @@ import { useNavigate } from 'react-router-dom';
 import { getDatabase, ref, push, set } from 'firebase/database';
 import { useAuth } from '../../contexts/AuthContext';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
+import { getGroqApiKey2Synch, getGroqApiUrlSynch } from '../../utils/apiKeys';
 
-// API Configuration
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+// API Configuration - now loaded from Firebase
+const getApiKey = () => getGroqApiKey2Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 // Custom styled components
 const ImageContainer = styled(Paper)(({ theme }) => ({
@@ -138,7 +139,7 @@ const StoryMatchAnalyzer = () => {
       
       // Call to Groq API
       const response = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
+        getApiUrl(),
         {
           messages: [
             {
@@ -174,7 +175,7 @@ Keep your response direct and clear.`
         },
         {
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json'
           }
         }
@@ -349,7 +350,7 @@ Keep your response direct and clear.`
             formData,
             {
               headers: {
-                'Authorization': `Bearer ${API_KEY}`,
+                'Authorization': `Bearer ${getApiKey()}`,
                 'Content-Type': 'multipart/form-data'
               }
             }

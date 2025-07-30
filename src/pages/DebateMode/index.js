@@ -13,10 +13,12 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
-// API Configuration
-const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+import { getGroqApiKey2Synch, getGoogleApiKeySynch } from '../../utils/apiKeys';
+
+// API Configuration - now loaded from Firebase
+const getGroqApiKey = () => getGroqApiKey2Synch();
+const getGoogleApiKey = () => getGoogleApiKeySynch();
+const getApiUrl = () => `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${getGoogleApiKey()}`;
 
 // Styled components
 const GradientTypography = styled(Typography)(({ theme }) => ({
@@ -197,7 +199,7 @@ const DebateSimulator = () => {
   const generateTopic = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -276,7 +278,7 @@ const DebateSimulator = () => {
             formData,
             {
               headers: {
-                'Authorization': `Bearer ${GROQ_API_KEY}`,
+                'Authorization': `Bearer ${getGroqApiKey()}`,
                 'Content-Type': 'multipart/form-data'
               }
             }
@@ -323,7 +325,7 @@ const DebateSimulator = () => {
     const aiPosition = userPosition === 'for' ? 'against' : 'for';
     
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -387,7 +389,7 @@ const DebateSimulator = () => {
       .join('\n\n');
     
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

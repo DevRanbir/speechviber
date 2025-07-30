@@ -33,9 +33,11 @@ import HelpIcon from '@mui/icons-material/Help';
 import { getDatabase, ref, push, set } from 'firebase/database';
 import { useAuth } from '../../contexts/AuthContext';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
+import { getGroqApiKey2Synch, getGroqApiUrlSynch } from '../../utils/apiKeys';
 
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+// API keys are now loaded from Firebase
+const getApiKey = () => getGroqApiKey2Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 const InterviewPractice = () => {
   useErrorBoundary();
@@ -77,11 +79,11 @@ const InterviewPractice = () => {
 
     try {
       // In the generateQuestions function, update the content property in the API request
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${getApiKey()}`
         },
         body: JSON.stringify({
           model: "gemma2-9b-it",

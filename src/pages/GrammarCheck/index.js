@@ -39,9 +39,11 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
 import { motion } from 'framer-motion';
+import { getGroqApiKey2Synch, getGroqApiUrlSynch } from '../../utils/apiKeys';
 
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+// API Configuration - now loaded from Firebase
+const getApiKey = () => getGroqApiKey2Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 const GrammarCheck = () => {
   useErrorBoundary();
@@ -280,11 +282,11 @@ const GrammarCheck = () => {
       // This is a simple check to see if the text is likely grammatically correct
       // A more sophisticated check would be needed for a real application
       
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${getApiKey()}`
         },
         body: JSON.stringify({
           model: "gemma2-9b-it",

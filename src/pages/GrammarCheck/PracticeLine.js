@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Box, Typography, Button, CircularProgress, Paper } from '@mui/material';
+import { getGroqApiKey2Synch, getGroqApiUrlSynch } from '../../utils/apiKeys';
 
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+// API Configuration - now loaded from Firebase
+const getApiKey = () => getGroqApiKey2Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 const PracticeLine = ({ onPracticeLine, show }) => {
   const [loading, setLoading] = useState(false);
@@ -17,11 +19,11 @@ const PracticeLine = ({ onPracticeLine, show }) => {
     setDifficulty(randomDifficulty);
 
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${getApiKey()}`
         },
         body: JSON.stringify({
           model: "gemma2-9b-it",

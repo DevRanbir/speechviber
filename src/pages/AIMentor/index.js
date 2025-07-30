@@ -53,9 +53,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { InputAdornment } from '@mui/material';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
+import { getGroqApiKey1Synch, getGroqApiUrlSynch } from '../../utils/apiKeys';
 
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_1;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+// Note: API keys are now loaded from Firebase
+// These will be null initially until the environment service loads them
+const getApiKey = () => getGroqApiKey1Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 // Suggested conversation starters
 const CONVERSATION_STARTERS = [
@@ -181,11 +184,11 @@ const AIMentor = () => {
         };
       }
 
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${getApiKey()}`
         },
         body: JSON.stringify(requestBody)
       });
@@ -338,7 +341,7 @@ const AIMentor = () => {
             {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${API_KEY}`
+                'Authorization': `Bearer ${getApiKey()}`
               },
               body: formData
             }

@@ -35,10 +35,11 @@ import {
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
+import { getGroqApiKey2Synch, getGroqApiUrlSynch } from '../../utils/apiKeys';
 
-// API Configuration
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+// API Configuration - now loaded from Firebase
+const getApiKey = () => getGroqApiKey2Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 // Internal Components
 const PageHeader = ({ title, subtitle, icon, backButton, onBackClick }) => (
@@ -242,7 +243,7 @@ const InterviewReadinessAnalyzer = () => {
       
       // Direct API call to Groq
       const response = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
+        getApiUrl(),
         {
           messages: [
             {
@@ -274,7 +275,7 @@ Keep your responses direct and clear, with no asterisks or markdown formatting.`
         },
         {
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json'
           }
         }

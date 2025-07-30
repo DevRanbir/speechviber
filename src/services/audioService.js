@@ -1,5 +1,6 @@
 // audioService.js
 import axios from 'axios';
+import { getSpeechApiKeySynch } from '../utils/apiKeys';
 
 /**
  * Starts recording audio and returns recording controls
@@ -98,7 +99,7 @@ const transcribeAudio = async (audioBlob) => {
       formData,
       {
         headers: {
-          'Authorization': `Bearer ${process.env.REACT_APP_SPEECH_API_KEY}`,
+          'Authorization': `Bearer ${getSpeechApiKeySynch()}`,
           'Content-Type': 'multipart/form-data'
         }
       }

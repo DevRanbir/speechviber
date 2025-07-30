@@ -43,9 +43,11 @@ import ColorLensIcon from '@mui/icons-material/ColorLens';
 import BorderColorIcon from '@mui/icons-material/BorderColor';
 import { useAuth } from '../../../contexts/AuthContext';
 import { getDatabase, ref, set, get, remove } from 'firebase/database';
+import { getGroqApiKey2Synch, getGroqApiUrlSynch } from '../../../utils/apiKeys';
 
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+// API Configuration - now loaded from Firebase
+const getApiKey = () => getGroqApiKey2Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 const LinedPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(2),
@@ -351,15 +353,15 @@ const AINotesTab = () => {
     Format the response using HTML for proper styling, making sure the notes are beautiful, engaging, and easy to read.`;
     
     // Debug logging
-    console.log('API_URL:', API_URL);
-    console.log('API_KEY:', API_KEY ? 'Present' : 'Missing');
+    console.log('API_URL:', getApiUrl());
+    console.log('API_KEY:', getApiKey() ? 'Present' : 'Missing');
     
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${getApiKey()}`
         },
         body: JSON.stringify({
           model: "gemma2-9b-it",
@@ -410,8 +412,8 @@ const AINotesTab = () => {
       }
     } catch (error) {
       console.error("Error generating AI notes:", error);
-      console.error("API_URL was:", API_URL);
-      console.error("API_KEY present:", !!API_KEY);
+      console.error("API_URL was:", getApiUrl());
+      console.error("API_KEY present:", !!getApiKey());
       setSnackbarMessage('Error generating notes. Please try again.');
       setSnackbarOpen(true);
     } finally {

@@ -27,10 +27,11 @@ import { useNavigate } from 'react-router-dom';
 import { getDatabase, ref, push, set, serverTimestamp } from 'firebase/database';
 import { useAuth } from '../../contexts/AuthContext';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
+import { getGroqApiKey2Synch, getGroqApiUrlSynch } from '../../utils/apiKeys';
 
-// API Configuration
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+// API Configuration - now loaded from Firebase
+const getApiKey = () => getGroqApiKey2Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 // Styling components
 const GradientTypography = styled(Typography)(({ theme }) => ({
@@ -240,10 +241,10 @@ const WordWizardry = () => {
   const generateWord = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${API_KEY}`,
+          "Authorization": `Bearer ${getApiKey()}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -355,7 +356,7 @@ const WordWizardry = () => {
               formData,
               {
                 headers: {
-                  'Authorization': `Bearer ${API_KEY}`,
+                  'Authorization': `Bearer ${getApiKey()}`,
                   'Content-Type': 'multipart/form-data'
                 }
               }
@@ -404,10 +405,10 @@ const WordWizardry = () => {
     let newScores = null;
     
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${API_KEY}`,
+          "Authorization": `Bearer ${getApiKey()}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useContext, Suspense, useTransition } from 'react';
+import React, { useState, useMemo, useContext, Suspense, useTransition, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom';
 import { AuthContext, AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material/styles';
@@ -28,6 +28,8 @@ import ParticleCursor from './components/ParticleCursor';
 import { ParticleProvider } from './contexts/ParticleContext';
 import Info from './pages/Info';
 import CustomLoader from './components/CustomLoader';
+import { initializeEnvironment } from './services/environmentService';
+import ApiKeysTest from './components/ApiKeysTest';
 import ErrorPage from './pages/ErrorPage';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -80,6 +82,9 @@ const ProtectedRoute = ({ children }) => {
 
 const App = () => {
   const [mode] = useState('dark');
+  const [envInitialized, setEnvInitialized] = useState(false);
+  const [envError, setEnvError] = useState(null);
+
   const theme = useMemo(
     () =>
       createTheme({
@@ -94,6 +99,47 @@ const App = () => {
       }),
     [mode]
   );
+
+  // Initialize environment service on app start
+  useEffect(() => {
+    const initEnv = async () => {
+      try {
+        await initializeEnvironment();
+        setEnvInitialized(true);
+        console.log('Environment service initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize environment service:', error);
+        setEnvError(error);
+        // Still allow app to continue with process.env fallback
+        setEnvInitialized(true);
+      }
+    };
+
+    initEnv();
+  }, []);
+
+  if (!envInitialized) {
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column',
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        background: 'linear-gradient(135deg, #111827 0%, #1E293B 100%)',
+        color: 'white',
+        textAlign: 'center'
+      }}>
+        <CircularProgress sx={{ color: '#7C3AED', mb: 2 }} />
+        <div>Initializing application...</div>
+        {envError && (
+          <div style={{ marginTop: '10px', fontSize: '12px', opacity: 0.7 }}>
+            Loading with fallback configuration
+          </div>
+        )}
+      </Box>
+    );
+  }
 
   return (
     <ErrorBoundary>
@@ -130,6 +176,7 @@ const App = () => {
                   <Route path="wordwizardry" element={<WordWizardry />} />
                   <Route path="speechprecision" element={<SpeechPrecision />} />
                   <Route path="info" element={<Info />} />
+                  <Route path="api-keys-test" element={<ApiKeysTest />} />
                   <Route path="error" element={<ErrorPage />} />
                 </Route>
               </Routes>

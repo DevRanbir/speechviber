@@ -21,8 +21,11 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import { getDatabase, ref, push, set } from 'firebase/database';
 import { useAuth } from '../../contexts/AuthContext';
 import { useErrorBoundary } from '../../hooks/useErrorBoundary';
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+import { getGroqApiKey2Synch, getGroqApiUrlSynch } from '../../utils/apiKeys';
+
+// API Configuration - now loaded from Firebase
+const getApiKey = () => getGroqApiKey2Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 const WordPower = () => {
   useErrorBoundary();
@@ -60,11 +63,11 @@ const WordPower = () => {
     setError(null);
 
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`
+          'Authorization': `Bearer ${getApiKey()}`
         },
         body: JSON.stringify({
           model: "gemma2-9b-it",

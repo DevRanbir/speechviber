@@ -44,10 +44,11 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { getDatabase, ref, set, serverTimestamp } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
+import { getGroqApiKey2Synch, getGroqApiUrlSynch } from '../../utils/apiKeys';
 
-// API Configuration
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+// API Configuration - now loaded from Firebase
+const getApiKey = () => getGroqApiKey2Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 // Internal Components
 const PageHeader = ({ title, subtitle, icon, backButton, onBackClick }) => (
@@ -393,7 +394,7 @@ const InterviewSimulator = () => {
         },
         {
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json'
           },
           responseType: 'arraybuffer'
@@ -528,7 +529,7 @@ const InterviewSimulator = () => {
             formData,
             {
               headers: {
-                'Authorization': `Bearer ${API_KEY}`,
+                'Authorization': `Bearer ${getApiKey()}`,
                 'Content-Type': 'multipart/form-data'
               }
             }
@@ -678,7 +679,7 @@ const InterviewSimulator = () => {
           },
           {
             headers: {
-              'Authorization': `Bearer ${API_KEY}`,
+              'Authorization': `Bearer ${getApiKey()}`,
               'Content-Type': 'application/json'
             }
           }
@@ -697,7 +698,7 @@ const InterviewSimulator = () => {
           },
           {
             headers: {
-              'Authorization': `Bearer ${API_KEY}`,
+              'Authorization': `Bearer ${getApiKey()}`,
               'Content-Type': 'application/json'
             }
           }
@@ -751,7 +752,7 @@ const InterviewSimulator = () => {
         },
         {
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json'
           }
         }
@@ -865,7 +866,7 @@ const InterviewSimulator = () => {
             },
             {
               headers: {
-                'Authorization': `Bearer ${API_KEY}`,
+                'Authorization': `Bearer ${getApiKey()}`,
                 'Content-Type': 'application/json'
               }
             }
@@ -890,7 +891,7 @@ const InterviewSimulator = () => {
             },
             {
               headers: {
-                'Authorization': `Bearer ${API_KEY}`,
+                'Authorization': `Bearer ${getApiKey()}`,
                 'Content-Type': 'application/json'
               }
             }
@@ -919,7 +920,7 @@ const InterviewSimulator = () => {
           },
           {
             headers: {
-              'Authorization': `Bearer ${API_KEY}`,
+              'Authorization': `Bearer ${getApiKey()}`,
               'Content-Type': 'application/json'
             }
           }
@@ -1004,7 +1005,7 @@ const InterviewSimulator = () => {
                   },
                   {
                     headers: {
-                      'Authorization': `Bearer ${API_KEY}`,
+                      'Authorization': `Bearer ${getApiKey()}`,
                       'Content-Type': 'application/json'
                     }
                   }

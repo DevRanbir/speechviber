@@ -84,10 +84,11 @@ import HelpIcon from '@mui/icons-material/Help';
 import UpdateIcon from '@mui/icons-material/Update';
 import AuthorsSection from '../Info/components/AuthorsSection';
 import HelpDeskSection from '../Info/components/HelpDeskSection';
+import { getGroqApiKey2Synch, getGroqApiUrlSynch } from '../../utils/apiKeys';
 
-// Groq API configuration
-const API_KEY = process.env.REACT_APP_GROQ_API_KEY_2;
-const API_URL = process.env.REACT_APP_GROQ_API_URL;
+// API Configuration - now loaded from Firebase
+const getApiKey = () => getGroqApiKey2Synch();
+const getApiUrl = () => getGroqApiUrlSynch();
 
 // Styled components
 const GradientButton = styled(Button)(({ theme }) => ({
@@ -944,10 +945,10 @@ const Dashboard = () => {
   const fetchDailyTip = async () => {
     setTipLoading(true);
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(getApiUrl(), {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${API_KEY}`,
+          'Authorization': `Bearer ${getApiKey()}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
