@@ -1,145 +1,75 @@
-![image](https://github.com/user-attachments/assets/5f590553-6d6a-4263-838f-8b2326780910)
+<!-- PROJECT IMAGE / BANNER -->
+<p align="center">
+  <img width="1848" height="952" alt="Speechviber" src="https://github.com/user-attachments/assets/51a6cb53-c9c7-403e-b11f-e772efc9ba03" />
+</p>
 
-# 🚀 SpeechViber  
-*Empowering better communication through AI-driven real-time reviews.*
+# 🚀 SpeechViber
 
----
-
-## 🧠 Problem Statement
-
-### 🎯 Problem Statement 1 – *Weave AI Magic with Groq*  
-Build a **creative and interactive multimodal application** powered by **Groq**, solving real-world problems with a **focus on user experience and innovation**.
+> AI-powered platform that improves communication skills, offering real-time feedback for public speaking, debates, and conversations.
 
 ---
 
-## 🎯 Objective
+## 📖 Description
 
-**SpeechViber** tackles the modern challenge of **enhancing communication skills**, especially in a world where **digital fluency** is vital for students, job seekers, and professionals. Our platform helps users improve their **public speaking, debate, and conversational abilities** through interactive, **AI-powered real-time feedback**.
+SpeechViber is an innovative AI-powered communication training platform that helps users improve their public speaking, debate, and conversation skills. Using advanced speech recognition and AI analysis, it provides real-time feedback on tone, pace, clarity, filler words, and overall delivery.
 
----
-
-## 👥 Team & Approach
-
-### 💡 Team Name: Vibers
-
-**Team Members:**  
-- 👨‍💻 **Sarabdeep Singh Bilkhu** – AI Integration Lead  
-- 🧠 **Ranbir Khurana** – [GitHub](https://github.com/devranbir) / Project Manager & Lead Developer  
-- 🎨 **Akshay Kumar** – Frontend Designer  
-
-### 🛠️ Approach  
-- Identified the growing need for accessible communication development  
-- Focused on real-time feedback and AI-driven analysis  
-- Built interactive learning modules with clean UI  
-- Integrated progress tracking and responsive design  
+What makes it unique:
+- Real-time speech analysis
+- AI-powered feedback on delivery
+- Multiple practice modes (public speaking, debates, conversations)
+- Progress tracking over time
+- Personalized improvement suggestions
 
 ---
 
-## 🧰 Tech Stack
+## ✨ Features
 
-**Frontend:** React.js, Material-UI, Framer Motion  
-**Backend:** Firebase Realtime Database  
-**Authentication & DB:** Firebase  
-**APIs:** Groq (NLP, Speech-to-Text, Text-to-Speech)  
-**Hosting:** GitHub Pages  
-
-✅ **Groq Sponsor Tech:** NLP-powered personalized feedback, real-time speech and text processing.
-
----
-
-## ✨ Key Features
-
-- 🌙 Dark Mode for user comfort  
-- 🎙️ Real-time speech feedback and expression analysis  
-- 📋 Personalized Notes Maker  
-- 📱 Fully Responsive Design  
-- 🔐 Firebase Authentication  
-- 🤖 AI Interview Mode with Visual Readiness Analysis  
-- 💬 AI Mentor Chatbox  
+- **Real-time Analysis** – Instant feedback on your speech
+- **Filler Word Detection** – Identify and reduce "um", "uh", "like"
+- **Pace & Tone Analysis** – Optimize speaking speed and vocal variety
+- **Clarity Scoring** – Measure articulation and pronunciation
+- **Practice Modes** – Public speaking, debates, casual conversations
+- **Progress Tracking** – Monitor improvement over time
+- **Recording Playback** – Review and analyze past sessions
 
 ---
 
-## 🗣️ Communication Skill Modules
+## 🧠 Tech Stack
 
-### 🎤 Speech Analysis  
-- Voice modulation feedback  
-- Pronunciation & clarity assessment  
-- Emotion & expression recognition  
-- Pace analysis  
+**Frontend**
+- JavaScript
+- React
+- HTML/CSS
 
-### ✍️ Textual Analysis  
-- MCQ Challenge  
-- Word Power  
-- Grammar Check  
-- ✨ Tongue Twister Challenge  
-- Word in Context  
-- ✨ Grammar Fill  
+**AI / ML**
+- Web Speech API
+- Speech Recognition
+- Natural Language Processing
 
-### 👁️ Visual Analysis  
-- Interview Readiness Analyzer  
-- Expression Matcher  
-- Full Mode  
+**Audio Processing**
+- Web Audio API
+- Audio visualization
 
-### 🧠 Other Modules  
-- AI Mentor Chatbox  
-- Personalized Notes Maker  
+**Deployment**
+- GitHub Pages
 
 ---
 
-## 📊 Progress Tracking (Firebase)
+## 🏗️ Architecture / Workflow
 
-- Performance analytics  
-- Achievement system  
-- Historical progress view  
-- Personalized suggestions  
-
----
-
-## 🤖 AI Integration Highlights
-
-- Natural Language Processing with Groq  
-- Real-time Speech-to-Text Feedback  
-- Emotion & Visual Cue Analysis  
-- Personalized AI Mentorship  
+```text
+Microphone Input → Speech Recognition → AI Analysis → Feedback Generation → Visual Display → Progress Storage
+```
 
 ---
 
-## 📱 Mobile Friendly UX
-
-- Optimized for various screen sizes  
-- Smooth and interactive UI/UX  
-- Framer Motion animations and clean layout  
-
----
-
-## 📽️ Demo & Deliverables  
-
-- 🎬 **Demo Video:** [*Coming Soon*]  
-- 📊 **Pitch Deck / Slides:** [*Coming Soon*]  
-
----
-
-## ✅ Tasks & Bonus Checklist
-
-- ✔️ Followed Socials + Form Submitted  
-- ✔️ Bonus: Shared badges + Form Submitted (2 pts)
-
----
-
-## 🧪 How to Run the Project
-
-**Requirements:**  
-- Node.js v14+  
-- Firebase account  
-- Groq API Key  
-
-**Local Setup Instructions:**
+## ⚙️ Installation & Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/devranbir/speechviber
+git clone https://github.com/DevRanbir/speechviber.git
 
-# Navigate to project folder
+# Navigate to project
 cd speechviber
 
 # Install dependencies
@@ -151,25 +81,69 @@ npm start
 
 ---
 
-## 🚀 Future Scope
+## 🔐 Environment Variables
 
-- 🌍 Multi-language Support  
-- 🎥 Video Conferencing Mode  
-- 🧠 Advanced Speech & Emotion Recognition  
-- 🫂 Community-based Practice Rooms  
-- 🧑‍🏫 Mock Interview & Presentation Rehearsal Mode  
+Create a `.env` file and add:
 
----
-
-## 📎 Resources & Credits
-
-- **APIs:** [Groq](https://www.groq.com/), [AssemblyAI](https://www.assemblyai.com/)  
-- **Libraries:** face-api.js, Material-UI, Framer Motion  
-- **Special Thanks:** Hackathon Organizers & Groq API Team  
+```env
+REACT_APP_SPEECH_API_KEY=your_speech_api_key
+REACT_APP_AI_FEEDBACK_KEY=your_ai_api_key
+```
 
 ---
 
-## 🏁 Final Words
+## 🧪 Usage
 
-SpeechViber was a **thrilling journey**, from brainstorming real-world challenges to delivering a **feature-rich, intelligent solution**. Our team learned a lot about AI integration, real-time analysis, and how to build a **responsive and smart platform**. A huge thanks to our mentors and tech sponsors for making this possible!
+* Step 1: Allow microphone access
+* Step 2: Select practice mode (speech, debate, conversation)
+* Step 3: Start speaking
+* Step 4: Receive real-time feedback
+* Step 5: Review analysis and improve
 
+---
+
+## 🎥 Demo
+
+* **Live Demo:** [https://devranbir.github.io/speechviber/](https://devranbir.github.io/speechviber/)
+
+---
+
+## 📂 Project Structure
+
+```text
+speechviber/
+├── src/
+│   ├── components/
+│   │   ├── SpeechRecorder.js
+│   │   ├── FeedbackDisplay.js
+│   │   └── ProgressTracker.js
+│   ├── services/
+│   │   ├── speechAnalysis.js
+│   │   └── audioProcessing.js
+│   └── App.js
+├── public/
+└── README.md
+```
+
+---
+
+## 🚧 Future Improvements
+
+- [ ] Add emotion detection in speech
+- [ ] Implement accent training
+- [ ] Create group practice sessions
+- [ ] Add AI conversation partner
+- [ ] Implement video analysis for body language
+
+---
+
+## 👥 Team / Author
+
+* **Name:** DevRanbir
+* **GitHub:** [https://github.com/DevRanbir](https://github.com/DevRanbir)
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License.
